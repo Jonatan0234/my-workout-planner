@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workouts - My Workout Planner</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('home') }}">
+                <i class="fas fa-dumbbell me-2"></i>My Workout Planner
+            </a>
+            
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+                <a class="nav-link active" href="{{ url_for('workout') }}">Workouts</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-lg-3 col-xl-2 sidebar">
+                <div class="sidebar-header">
+                    <h3 class="sidebar-title">Workout Plans</h3>
+                </div>
+                <ul class="sidebar-menu">
+                    <!-- Chest & Triceps -->
+                    <li class="sidebar-item">
+                        <a class="sidebar-link" data-bs-toggle="collapse" href="#collapseChest">
+                            <i class="fas fa-fire me-2"></i>Chest & Triceps
+                        </a>
+                        <div class="collapse show" id="collapseChest">
+                            <div class="sidebar-submenu">
+                                <a class="sidebar-link" href="/workout?category=chest_triceps&day=day1">Day 1</a>
+                                <a class="sidebar-link" href="/workout?category=chest_triceps&day=day2">Day 2</a>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <!-- Back & Biceps -->
+                    <li class="sidebar-item">
+                        <a class="sidebar-link" data-bs-toggle="collapse" href="#collapseBack">
+                            <i class="fas fa-mountain me-2"></i>Back & Biceps
+                        </a>
+                        <div class="collapse" id="collapseBack">
+                            <div class="sidebar-submenu">
+                                <a class="sidebar-link" href="/workout?category=back_biceps&day=day1">Day 1</a>
+                                <a class="sidebar-link" href="/workout?category=back_biceps&day=day2">Day 2</a>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <!-- Legs & Shoulders -->
+                    <li class="sidebar-item">
+                        <a class="sidebar-link" data-bs-toggle="collapse" href="#collapseLegs">
+                            <i class="fas fa-running me-2"></i>Legs & Shoulders
+                        </a>
+                        <div class="collapse" id="collapseLegs">
+                            <div class="sidebar-submenu">
+                                <a class="sidebar-link" href="/workout?category=legs_shoulders&day=day1">Day 1</a>
+                                <a class="sidebar-link" href="/workout?category=legs_shoulders&day=day2">Day 2</a>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <main class="col-lg-9 col-xl-10 main-content">
+                <div class="container-fluid py-4">
+                    <!-- Content Header -->
+                    <div class="content-header">
+                        <div>
+                            <h1 class="h2 fw-bold mb-2">
+                                {% if category and day %}
+                                    {% set category_name = category.replace('_', ' ').title() %}
+                                    {% set day_name = day.replace('day', 'Day ') %}
+                                    {{ category_name }} - {{ day_name }}
+                                {% else %}
+                                    Workout Library
+                                {% endif %}
+                            </h1>
+                            <p class="text-muted">Select a workout plan from the sidebar</p>
+                        </div>
+                    </div>
+
+                    <!-- Workout Content -->
+                    {% if selected %}
+                        {% for group, ex_list in selected.items() %}
+                            <div class="row mb-4">
+                                <!-- Improved group header that doesn't get cut off -->
+                                <div class="group-header">
+                                    <h3 class="text-capitalize fw-bold text-gradient group-title">{{ group }}</h3>
+                                    <span class="badge bg-primary fs-6">{{ ex_list|length }} exercises</span>
+                                </div>
+                                
+                                <!-- Improved grid with proper spacing -->
+                                <div class="workouts-grid">
+                                    {% for ex in ex_list %}
+                                        <div class="workout-column">
+                                            <div class="workout-card">
+                                                <!-- Exercise Image with Overlay -->
+                                                <div class="exercise-image-container">
+                                                    <img src="{{ ex.image }}" class="exercise-image" alt="{{ ex.name }}">
+                                                    
+                                                    <!-- Overlay with all information -->
+                                                    <div class="exercise-overlay">
+                                                        <h5 class="exercise-name">{{ ex.name }}</h5>
+                                                        
+                                                        <!-- Exercise Stats -->
+                                                        <div class="exercise-stats-compact">
+                                                            <span class="stat-item">
+                                                                <i class="fas fa-layer-group"></i>
+                                                                {{ ex.sets }}
+                                                            </span>
+                                                            <span class="stat-item">
+                                                                <i class="fas fa-redo"></i>
+                                                                {{ ex.reps }}
+                                                            </span>
+                                                            <span class="stat-item">
+                                                                <i class="fas fa-clock"></i>
+                                                                {{ ex.rest }}
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <!-- Action Buttons -->
+                                                        <div class="exercise-actions-compact">
+                                                            <button class="btn btn-primary btn-sm" 
+                                                                    data-bs-toggle="modal" 
+                                                                    data-bs-target="#infoModal{{ loop.index }}_{{ group }}">
+                                                                <i class="fas fa-info-circle me-1"></i>Details
+                                                            </button>
+                                                            <button class="btn btn-outline-light btn-sm" 
+                                                                    data-bs-toggle="modal" 
+                                                                    data-bs-target="#muscleModal{{ loop.index }}_{{ group }}">
+                                                                <i class="fas fa-music me-1"></i>Muscles
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Exercise Details Modal -->
+                                        <div class="modal fade" id="infoModal{{ loop.index }}_{{ group }}" tabindex="-1">
+                                            <div class="modal-dialog modal-lg">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">{{ ex.name }}</h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <div class="row">
+                                                            <div class="col-md-6">
+                                                                <img src="{{ ex.image }}" class="img-fluid rounded-3 mb-3" alt="{{ ex.name }}">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <h6>Instructions</h6>
+                                                                <p class="mb-4">{{ ex.description }}</p>
+                                                                
+                                                                <div class="exercise-details">
+                                                                    <div class="detail-item">
+                                                                        <i class="fas fa-layer-group text-primary"></i>
+                                                                        <div>
+                                                                            <strong>Sets</strong>
+                                                                            <div>{{ ex.sets }}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="detail-item">
+                                                                        <i class="fas fa-redo text-primary"></i>
+                                                                        <div>
+                                                                            <strong>Reps</strong>
+                                                                            <div>{{ ex.reps }}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="detail-item">
+                                                                        <i class="fas fa-clock text-primary"></i>
+                                                                        <div>
+                                                                            <strong>Rest</strong>
+                                                                            <div>{{ ex.rest }}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Muscle Modal -->
+                                        <div class="modal fade" id="muscleModal{{ loop.index }}_{{ group }}" tabindex="-1">
+                                            <div class="modal-dialog modal-sm">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">{{ ex.name }} - Muscles</h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body text-center">
+                                                        <img src="{{ ex.muscle_image }}" class="img-fluid rounded-3" alt="Muscle target">
+                                                        <p class="text-muted mt-3">Primary muscles worked</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <!-- Empty State -->
+                        <div class="text-center py-5">
+                            <i class="fas fa-dumbbell display-1 text-muted mb-4"></i>
+                            <h3 class="text-muted">No Workout Selected</h3>
+                            <p class="text-muted">Choose a workout plan from the sidebar to view exercises</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap & Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-expand current category in sidebar
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const category = urlParams.get('category');
+            
+            if (category) {
+                // Close all collapses first
+                const collapses = document.querySelectorAll('.collapse');
+                collapses.forEach(collapse => {
+                    new bootstrap.Collapse(collapse, { toggle: false }).hide();
+                });
+                
+                // Open current category
+                const collapseId = 'collapse' + category.split('_').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join('');
+                
+                const currentCollapse = document.getElementById(collapseId);
+                if (currentCollapse) {
+                    new bootstrap.Collapse(currentCollapse, { toggle: false }).show();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
