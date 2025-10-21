@@ -1,4 +1,6 @@
 from flask import Flask, render_template, request, jsonify
+from datetime import datetime, timedelta
+import requests
 
 app = Flask(__name__)
 
@@ -291,6 +293,17 @@ exercises = {
 # ==============================
 APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
 
+# Datos de ejemplo del calendario (reemplaza con tus eventos reales)
+WORKOUT_SCHEDULE = {
+    "monday": ["Chest & Triceps - Day 1", "Cardio: 30min"],
+    "tuesday": ["Back & Biceps - Day 1", "Abs: 15min"],
+    "wednesday": ["Legs & Shoulders - Day 1", "Stretching: 20min"],
+    "thursday": ["Chest & Triceps - Day 2", "Cardio: 30min"],
+    "friday": ["Back & Biceps - Day 2", "Abs: 15min"],
+    "saturday": ["Legs & Shoulders - Day 2", "Yoga: 30min"],
+    "sunday": ["Rest Day", "Active Recovery"]
+}
+
 # ==============================
 # 🖥️ ROUTES
 # ==============================
@@ -321,6 +334,62 @@ def workout_progress():
         'consistency_score': 85
     }
     return jsonify(progress_data)
+
+@app.route('/api/calendar-events')
+def calendar_events():
+    """API para obtener eventos del calendario"""
+    # En una implementación real, aquí procesarías el calendario iCal
+    # Por ahora usamos datos de ejemplo
+    events = generate_sample_events()
+    return jsonify(events)
+
+def generate_sample_events():
+    """Generar eventos de ejemplo del calendario"""
+    events = []
+    today = datetime.now()
+    
+    # Generar eventos para los próximos 14 días
+    for i in range(14):
+        date = today + timedelta(days=i)
+        day_name = date.strftime("%A").lower()
+        
+        if day_name in WORKOUT_SCHEDULE:
+            for workout in WORKOUT_SCHEDULE[day_name]:
+                events.append({
+                    'title': workout,
+                    'start': date.strftime("%Y-%m-%d"),
+                    'color': get_workout_color(workout),
+                    'time': get_workout_time(day_name),
+                    'completed': i < 2  # Marcar algunos como completados
+                })
+    
+    return events
+
+def get_workout_color(workout):
+    """Asignar colores según el tipo de workout"""
+    if "Chest" in workout:
+        return "#6366f1"  # Primary
+    elif "Back" in workout:
+        return "#f59e0b"  # Warning
+    elif "Legs" in workout:
+        return "#10b981"  # Success
+    elif "Rest" in workout:
+        return "#64748b"  # Gray
+    else:
+        return "#8b5cf6"  # Purple
+
+def get_workout_time(day):
+    """Horarios de ejemplo para los workouts"""
+    times = {
+        "monday": "07:00",
+        "tuesday": "07:00", 
+        "wednesday": "07:00",
+        "thursday": "18:00",
+        "friday": "18:00",
+        "saturday": "09:00",
+        "sunday": "10:00"
+    }
+    return times.get(day, "07:00")
 
 # ==============================
 # 🚀 RUN APP
