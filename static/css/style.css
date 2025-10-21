@@ -1,4 +1,75 @@
 /* ===== MODERN WORKOUT PLANNER STYLES ===== */
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  width: 280px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  z-index: 999;
+  margin-top: 80px;
+  transition: transform 0.3s ease;
+}
+
+/* Sidebar oculto por defecto en móviles */
+@media (max-width: 991.98px) {
+  .sidebar {
+    transform: translateX(-100%);
+    margin-top: 0;
+    padding-top: 4rem; /* Espacio para el botón de cerrar */
+  }
+  
+  .sidebar.active {
+    transform: translateX(0);
+  }
+  
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Overlay para móviles */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.sidebar-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Prevenir scroll del body cuando el sidebar está abierto */
+body.sidebar-open {
+  overflow: hidden;
+}
+
+/* Botón de toggle del sidebar */
+#sidebarToggle {
+  position: relative;
+  z-index: 1000;
+}
+
+/* Botón de cerrar sidebar en móviles */
+#closeSidebar {
+  z-index: 1001;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {

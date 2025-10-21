@@ -8,6 +8,42 @@ class WorkoutPlanner {
         this.initEventListeners();
         this.initAnimations();
         this.loadUserPreferences();
+        this.initSidebar();
+    }
+
+    initSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const closeSidebar = document.getElementById('closeSidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const mainContent = document.getElementById('mainContent');
+
+        if (!sidebar || !sidebarToggle) return;
+
+        const toggleSidebar = () => {
+            sidebar.classList.toggle('active');
+            if (sidebarOverlay) sidebarOverlay.classList.toggle('active');
+            document.body.classList.toggle('sidebar-open');
+        };
+        sidebarToggle.addEventListener('click', toggleSidebar);
+        
+        if (closeSidebar) {
+            closeSidebar.addEventListener('click', toggleSidebar);
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', toggleSidebar);
+        }
+
+        // Cerrar sidebar al hacer clic en un enlace en móviles
+        const sidebarLinks = document.querySelectorAll('.sidebar-link');
+        sidebarLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth < 992) {
+                    toggleSidebar();
+                }
+            });
+        });
     }
 
     initEventListeners() {
