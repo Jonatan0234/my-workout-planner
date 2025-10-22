@@ -1,13 +1,10 @@
+from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import requests
 import json
-import os
-from icalendar import Calendar
-import urllib.request
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+
 # ==============================
 # 💪 WORKOUT DATA CONFIGURATION
 # ==============================
@@ -15,24 +12,6 @@ exercises = {
     "chest_triceps": {
         "day1": {
             "chest": [
-                {
-                    "name": "Bench Press prueba",
-                    "image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Pictures/Chest/Day1/1.gif",
-                    "muscle_image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Muscles/Chest.png",
-                    "description": "Lie flat on a bench, grip slightly wider than shoulder-width. Lower the bar under control to mid-chest and press up explosively. Keep feet planted and core tight.",
-                    "sets": "4 sets",
-                    "reps": "8-12 reps",
-                    "rest": "90s rest"
-                },
-                {
-                    "name": "Incline Dumbbell Press",
-                    "image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Pictures/Chest/Day1/2.gif",
-                    "muscle_image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Muscles/Chest.png",
-                    "description": "Set bench to 30–45°. Press dumbbells up and slightly together. Focus on pressing with the upper chest and control the negative.",
-                    "sets": "3 sets",
-                    "reps": "10-15 reps",
-                    "rest": "75s rest"
-                },
                 {
                     "name": "Bench Press",
                     "image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Pictures/Chest/Day1/1.gif",
@@ -116,7 +95,6 @@ exercises = {
             ]
         }
     },
-
     "back_biceps": {
         "day1": {
             "back": [
@@ -203,7 +181,6 @@ exercises = {
             ]
         }
     },
-
     "legs_shoulders": {
         "day1": {
             "legs": [
@@ -293,22 +270,21 @@ exercises = {
 }
 
 # ==============================
-# 🗓️ CALENDAR CONFIG - URL REAL DE TU CALENDARIO
+# 🗓️ CALENDAR CONFIG
 # ==============================
-# Esta es la URL pública de tu calendario iCloud
-ICAL_URL = "https://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
+APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
 
 # ==============================
 # 🖥️ ROUTES
 # ==============================
 @app.route('/')
 def home():
-    """Página de inicio"""
-    return render_template('home.html', calendar_url=ICAL_URL)
+    """Página de inicio simplificada"""
+    return render_template('home.html', calendar_url=APPLE_CALENDAR_URL)
 
 @app.route('/workout')
 def workout():
-    """Página de ejercicios"""
+    """Página de ejercicios con imágenes completas"""
     category = request.args.get('category')
     day = request.args.get('day')
     selected = None
@@ -320,7 +296,7 @@ def workout():
 
 @app.route('/api/workout-progress')
 def workout_progress():
-    """API para datos de progreso"""
+    """API para datos de progreso (opcional)"""
     progress_data = {
         'completed_workouts': 12,
         'total_workouts': 16,
@@ -331,72 +307,117 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """API para obtener eventos REALES del calendario iCloud"""
+    """API para obtener eventos REALES del calendario"""
     try:
-        events = get_real_ical_events()
+        # Intentar obtener eventos reales del calendario iCloud
+        events = get_real_calendar_events()
         return jsonify({
             'success': True,
             'events': events,
-            'last_updated': datetime.now().isoformat()
+            'count': len(events),
+            'message': f'Successfully loaded {len(events)} events from your calendar'
         })
     except Exception as e:
-        print(f"Error fetching calendar: {e}")
+        print(f"Error fetching real calendar: {str(e)}")
+        # Fallback a eventos de ejemplo
+        events = get_fallback_events()
         return jsonify({
             'success': False,
-            'error': str(e),
-            'events': get_fallback_events()
+            'events': events,
+            'count': len(events),
+            'message': 'Using sample data - Could not connect to your iPhone calendar',
+            'error': str(e)
         })
 
-def get_real_ical_events():
+def get_real_calendar_events():
     """Obtener eventos reales del calendario iCloud"""
-    events = []
-    
     try:
+        # Convertir webcal:// a https://
+        ical_url = APPLE_CALENDAR_URL.replace('webcal://', 'https://')
+        
         # Descargar el archivo iCal
-        response = requests.get(ICAL_URL, timeout=10)
+        response = requests.get(ical_url, timeout=10)
         response.raise_for_status()
         
-        # Parsear el calendario iCal
-        cal = Calendar.from_ical(response.text)
-        
-        today = datetime.now().date()
-        start_date = today - timedelta(days=7)  # Una semana atrás
-        end_date = today + timedelta(days=30)   # Un mes adelante
-        
-        for component in cal.walk():
-            if component.name == "VEVENT":
-                start_dt = component.get('dtstart').dt
-                end_dt = component.get('dtend').dt
-                summary = str(component.get('summary', ''))
-                description = str(component.get('description', ''))
-                
-                # Convertir a datetime si es solo date
-                if isinstance(start_dt, datetime):
-                    event_date = start_dt
-                else:
-                    event_date = datetime.combine(start_dt, datetime.min.time())
-                
-                # Filtrar eventos en el rango de fechas
-                if start_date <= event_date.date() <= end_date:
-                    event_data = {
-                        'title': summary,
-                        'start': event_date.isoformat(),
-                        'end': end_dt.isoformat() if end_dt else event_date.isoformat(),
-                        'description': description,
-                        'color': get_event_color(summary),
-                        'allDay': not isinstance(start_dt, datetime),
-                        'location': str(component.get('location', ''))
-                    }
-                    events.append(event_data)
-        
-        # Ordenar eventos por fecha
-        events.sort(key=lambda x: x['start'])
+        # Parsear manualmente el contenido iCal (simplificado)
+        events = parse_ical_content(response.text)
+        return events
         
     except Exception as e:
-        print(f"Error parsing iCal: {e}")
+        print(f"Error in get_real_calendar_events: {str(e)}")
         raise e
+
+def parse_ical_content(ical_content):
+    """Parsear contenido iCal manualmente"""
+    events = []
+    lines = ical_content.split('\n')
+    
+    current_event = {}
+    in_event = False
+    
+    for line in lines:
+        line = line.strip()
+        
+        if line == 'BEGIN:VEVENT':
+            in_event = True
+            current_event = {}
+        elif line == 'END:VEVENT':
+            in_event = False
+            if current_event.get('summary') and current_event.get('dtstart'):
+                # Solo incluir eventos que parezcan ser workouts
+                if is_workout_event(current_event.get('summary', '')):
+                    events.append(process_calendar_event(current_event))
+            current_event = {}
+        elif in_event and ':' in line:
+            key, value = line.split(':', 1)
+            current_event[key] = value
     
     return events
+
+def is_workout_event(summary):
+    """Determinar si un evento es un workout basado en el título"""
+    workout_keywords = [
+        'workout', 'training', 'exercise', 'gym', 'fitness',
+        'chest', 'back', 'legs', 'shoulders', 'arms',
+        'squat', 'deadlift', 'bench', 'press', 'row', 'pull',
+        'cardio', 'run', 'bike', 'swim', 'yoga'
+    ]
+    summary_lower = summary.lower()
+    return any(keyword in summary_lower for keyword in workout_keywords)
+
+def process_calendar_event(event_data):
+    """Procesar datos del evento del calendario"""
+    summary = event_data.get('summary', 'Workout')
+    start_str = event_data.get('dtstart', '')
+    end_str = event_data.get('dtend', '')
+    
+    # Parsear fecha (formato simplificado)
+    start_date = parse_ical_date(start_str)
+    end_date = parse_ical_date(end_str) if end_str else start_date
+    
+    return {
+        'title': summary,
+        'start': start_date.isoformat() if start_date else datetime.now().isoformat(),
+        'end': end_date.isoformat() if end_date else start_date.isoformat() if start_date else datetime.now().isoformat(),
+        'color': get_event_color(summary),
+        'allDay': len(start_str) == 8,  # Si es solo fecha (YYYYMMDD)
+        'description': event_data.get('description', ''),
+        'location': event_data.get('location', ''),
+        'isReal': True
+    }
+
+def parse_ical_date(date_str):
+    """Parsear fecha desde formato iCal"""
+    try:
+        if len(date_str) == 8:  # YYYYMMDD
+            return datetime.strptime(date_str, '%Y%m%d')
+        elif 'T' in date_str:  # YYYYMMDDTHHMMSS
+            date_str = date_str.split('T')[0]
+            return datetime.strptime(date_str, '%Y%m%d')
+        else:
+            return datetime.now()
+    except:
+        return datetime.now()
 
 def get_event_color(event_title):
     """Asignar colores basado en el contenido del evento"""
@@ -418,30 +439,35 @@ def get_event_color(event_title):
         return "#06b6d4"  # Cyan
 
 def get_fallback_events():
-    """Eventos de respaldo si falla la conexión al calendario"""
+    """Eventos de respaldo si falla la conexión al calendario real"""
     today = datetime.now()
     events = []
     
-    workout_days = [
+    # Crear eventos de ejemplo para la próxima semana
+    workout_schedule = [
         ("Chest & Triceps - Day 1", 0, "#6366f1"),
         ("Back & Biceps - Day 1", 1, "#f59e0b"),
         ("Legs & Shoulders - Day 1", 2, "#10b981"),
-        ("Cardio - 30min", 3, "#ef4444"),
+        ("Cardio - 30min Running", 3, "#ef4444"),
         ("Chest & Triceps - Day 2", 4, "#6366f1"),
         ("Back & Biceps - Day 2", 5, "#f59e0b"),
-        ("Rest Day", 6, "#64748b")
+        ("Rest Day - Active Recovery", 6, "#64748b")
     ]
     
-    for title, day_offset, color in workout_days:
+    for title, day_offset, color in workout_schedule:
         event_date = today + timedelta(days=day_offset)
+        start_time = event_date.replace(hour=7, minute=0, second=0)
+        end_time = event_date.replace(hour=8, minute=0, second=0)
+        
         events.append({
             'title': title,
-            'start': event_date.replace(hour=7, minute=0, second=0).isoformat(),
-            'end': event_date.replace(hour=8, minute=0, second=0).isoformat(),
+            'start': start_time.isoformat(),
+            'end': end_time.isoformat(),
             'color': color,
             'allDay': False,
-            'description': 'Workout session',
-            'isFallback': True
+            'description': 'Workout session from your training plan',
+            'location': 'Gym',
+            'isReal': False
         })
     
     return events
