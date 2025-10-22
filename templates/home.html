@@ -43,6 +43,9 @@
                         <a href="{{ url_for('workout') }}" class="btn btn-primary btn-lg">
                             <i class="fas fa-dumbbell me-2"></i>View Workouts
                         </a>
+                        <button class="btn btn-outline-light btn-lg" onclick="refreshCalendar()">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Calendar
+                        </button>
                     </div>
                 </div>
                 
@@ -56,36 +59,56 @@
         </div>
     </section>
 
-    <!-- Calendar Section -->
+    <!-- Real Calendar Section -->
     <section class="py-5">
         <div class="container">
             <div class="row justify-content-center">
-                <div class="col-lg-10">
+                <div class="col-lg-12">
                     <div class="calendar-section">
                         <div class="row align-items-center mb-4">
                             <div class="col-md-8">
                                 <h2 class="mb-3">
                                     <i class="fas fa-calendar-alt text-primary me-2"></i>
-                                    Workout Calendar
+                                    My Real Workout Calendar
                                 </h2>
-                                <p class="text-muted mb-0">
-                                    Your personalized workout schedule. Sync with Apple Calendar to stay updated.
+                                <p class="text-muted mb-0" id="calendarStatus">
+                                    Loading your actual workout schedule from iPhone...
                                 </p>
                             </div>
                             <div class="col-md-4 text-md-end">
-                                <a href="{{ calendar_url }}" class="btn btn-primary btn-lg">
-                                    <i class="fab fa-apple me-2"></i>Sync with Apple Calendar
-                                </a>
+                                <div class="btn-group">
+                                    <button class="btn btn-primary" onclick="refreshCalendar()">
+                                        <i class="fas fa-sync-alt me-2"></i>Refresh
+                                    </button>
+                                    <a href="{{ calendar_url }}" class="btn btn-outline-light">
+                                        <i class="fab fa-apple me-2"></i>iCal Link
+                                    </a>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Calendar View -->
-                        <div id="workoutCalendar">
+                        <!-- Calendar Controls -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <button class="btn btn-outline-light btn-sm" onclick="changeWeek(-1)">
+                                        <i class="fas fa-chevron-left me-2"></i>Previous Week
+                                    </button>
+                                    <h5 class="mb-0" id="currentWeekRange">Loading...</h5>
+                                    <button class="btn btn-outline-light btn-sm" onclick="changeWeek(1)">
+                                        Next Week<i class="fas fa-chevron-right ms-2"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Real Calendar View -->
+                        <div id="realCalendar">
                             <div class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading calendar...</span>
+                                    <span class="visually-hidden">Loading your real calendar...</span>
                                 </div>
-                                <p class="mt-3 text-muted">Loading your workout schedule...</p>
+                                <p class="mt-3 text-muted">Loading your actual workout events from iPhone...</p>
                             </div>
                         </div>
 
@@ -95,20 +118,24 @@
                                 <h6 class="text-muted mb-3">Workout Types:</h6>
                                 <div class="d-flex flex-wrap gap-3">
                                     <div class="d-flex align-items-center">
-                                        <span class="legend-color bg-primary me-2"></span>
-                                        <small>Chest & Triceps</small>
+                                        <span class="legend-color" style="background-color: #6366f1;"></span>
+                                        <small class="ms-2">Chest & Triceps</small>
                                     </div>
                                     <div class="d-flex align-items-center">
-                                        <span class="legend-color bg-warning me-2"></span>
-                                        <small>Back & Biceps</small>
+                                        <span class="legend-color" style="background-color: #f59e0b;"></span>
+                                        <small class="ms-2">Back & Biceps</small>
                                     </div>
                                     <div class="d-flex align-items-center">
-                                        <span class="legend-color bg-success me-2"></span>
-                                        <small>Legs & Shoulders</small>
+                                        <span class="legend-color" style="background-color: #10b981;"></span>
+                                        <small class="ms-2">Legs & Shoulders</small>
                                     </div>
                                     <div class="d-flex align-items-center">
-                                        <span class="legend-color bg-secondary me-2"></span>
-                                        <small>Rest & Recovery</small>
+                                        <span class="legend-color" style="background-color: #ef4444;"></span>
+                                        <small class="ms-2">Cardio</small>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <span class="legend-color" style="background-color: #64748b;"></span>
+                                        <small class="ms-2">Rest & Recovery</small>
                                     </div>
                                 </div>
                             </div>
@@ -122,71 +149,112 @@
     <!-- Bootstrap & Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Cargar eventos del calendario
+        let currentWeekOffset = 0;
+
+        // Cargar eventos reales del calendario
         document.addEventListener('DOMContentLoaded', function() {
-            fetch('/api/calendar-events')
-                .then(response => response.json())
-                .then(events => {
-                    renderCalendar(events);
-                })
-                .catch(error => {
-                    console.error('Error loading calendar:', error);
-                    document.getElementById('workoutCalendar').innerHTML = `
-                        <div class="text-center py-5">
-                            <i class="fas fa-calendar-times display-1 text-muted mb-4"></i>
-                            <h3 class="text-muted">Calendar Unavailable</h3>
-                            <p class="text-muted">Unable to load workout schedule. Please try again later.</p>
-                        </div>
-                    `;
-                });
+            loadRealCalendar();
         });
 
-        function renderCalendar(events) {
-            const calendarEl = document.getElementById('workoutCalendar');
+        function loadRealCalendar() {
+            const calendarEl = document.getElementById('realCalendar');
+            const statusEl = document.getElementById('calendarStatus');
             
-            // Calendario simple con eventos
-            let calendarHTML = `
-                <div class="calendar-header mb-4">
-                    <h4 class="text-center">This Week's Workouts</h4>
+            calendarEl.innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading your real calendar...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading your actual workout events from iPhone...</p>
                 </div>
-                <div class="calendar-grid">
             `;
 
-            // Agrupar eventos por día
-            const eventsByDay = {};
-            events.forEach(event => {
-                if (!eventsByDay[event.start]) {
-                    eventsByDay[event.start] = [];
-                }
-                eventsByDay[event.start].push(event);
-            });
+            statusEl.textContent = 'Loading your actual workout schedule from iPhone...';
 
-            // Generar vista de calendario para 7 días
-            const today = new Date();
-            for (let i = 0; i < 7; i++) {
-                const date = new Date(today);
-                date.setDate(today.getDate() + i);
-                const dateString = date.toISOString().split('T')[0];
-                const dayName = date.toLocaleDateString('en', { weekday: 'long' });
-                const dayNumber = date.getDate();
-
-                const dayEvents = eventsByDay[dateString] || [];
-                
-                calendarHTML += `
-                    <div class="calendar-day ${i === 0 ? 'calendar-day-today' : ''}">
-                        <div class="calendar-day-header">
-                            <strong>${dayName}</strong>
-                            <span class="calendar-date">${dayNumber}</span>
+            fetch('/api/real-calendar-events')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderRealCalendar(data.events);
+                        statusEl.innerHTML = `<i class="fas fa-check-circle text-success me-2"></i>Loaded ${data.events.length} workout events from your iPhone`;
+                    } else {
+                        renderRealCalendar(data.events);
+                        statusEl.innerHTML = `<i class="fas fa-exclamation-triangle text-warning me-2"></i>Using fallback data - Could not connect to your iPhone calendar`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading real calendar:', error);
+                    calendarEl.innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="fas fa-calendar-times display-1 text-muted mb-4"></i>
+                            <h3 class="text-muted">Cannot Load Calendar</h3>
+                            <p class="text-muted">Unable to connect to your iPhone calendar. Please check your internet connection.</p>
+                            <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
+                                <i class="fas fa-redo me-2"></i>Try Again
+                            </button>
                         </div>
-                        <div class="calendar-events">
-                            ${dayEvents.map(event => `
-                                <div class="calendar-event" style="border-left-color: ${event.color}">
-                                    <div class="event-time">${event.time}</div>
-                                    <div class="event-title">${event.title}</div>
-                                    ${event.completed ? '<div class="event-completed"><i class="fas fa-check"></i></div>' : ''}
+                    `;
+                    statusEl.innerHTML = `<i class="fas fa-times-circle text-danger me-2"></i>Error loading calendar`;
+                });
+        }
+
+        function renderRealCalendar(events) {
+            const calendarEl = document.getElementById('realCalendar');
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() + (currentWeekOffset * 7) - today.getDay());
+            
+            updateWeekRangeDisplay(startDate);
+
+            let calendarHTML = `
+                <div class="real-calendar-grid">
+            `;
+
+            // Generar vista de 7 días (semana completa)
+            for (let i = 0; i < 7; i++) {
+                const currentDate = new Date(startDate);
+                currentDate.setDate(startDate.getDate() + i);
+                
+                const dateString = currentDate.toISOString().split('T')[0];
+                const dayName = currentDate.toLocaleDateString('en', { weekday: 'long' });
+                const dayNumber = currentDate.getDate();
+                const monthName = currentDate.toLocaleDateString('en', { month: 'short' });
+                
+                const isToday = currentDate.toDateString() === today.toDateString();
+                const isPast = currentDate < today && !isToday;
+                
+                // Filtrar eventos para este día
+                const dayEvents = events.filter(event => {
+                    const eventDate = new Date(event.start).toDateString();
+                    return eventDate === currentDate.toDateString();
+                });
+
+                calendarHTML += `
+                    <div class="real-calendar-day ${isToday ? 'real-calendar-day-today' : ''} ${isPast ? 'real-calendar-day-past' : ''}">
+                        <div class="real-calendar-day-header">
+                            <div>
+                                <strong>${dayName}</strong>
+                                <div class="real-calendar-date">
+                                    ${monthName} ${dayNumber}
+                                    ${isToday ? '<span class="today-badge">Today</span>' : ''}
                                 </div>
-                            `).join('')}
-                            ${dayEvents.length === 0 ? '<div class="text-muted small">No workouts</div>' : ''}
+                            </div>
+                        </div>
+                        <div class="real-calendar-events">
+                            ${dayEvents.length > 0 ? 
+                                dayEvents.map(event => `
+                                    <div class="real-calendar-event" style="border-left-color: ${event.color}">
+                                        <div class="event-time">
+                                            ${event.allDay ? 'All Day' : new Date(event.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </div>
+                                        <div class="event-title">${event.title}</div>
+                                        ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
+                                        ${event.isFallback ? '<div class="event-fallback-badge">Sample</div>' : ''}
+                                    </div>
+                                `).join('') 
+                                : 
+                                '<div class="no-events text-muted small">No workouts scheduled</div>'
+                            }
                         </div>
                     </div>
                 `;
@@ -194,6 +262,24 @@
 
             calendarHTML += `</div>`;
             calendarEl.innerHTML = calendarHTML;
+        }
+
+        function updateWeekRangeDisplay(startDate) {
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            
+            const rangeText = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+            document.getElementById('currentWeekRange').textContent = rangeText;
+        }
+
+        function changeWeek(direction) {
+            currentWeekOffset += direction;
+            loadRealCalendar();
+        }
+
+        function refreshCalendar() {
+            currentWeekOffset = 0;
+            loadRealCalendar();
         }
     </script>
 </body>

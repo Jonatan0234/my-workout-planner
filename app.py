@@ -1,9 +1,13 @@
-from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import requests
+import json
+import os
+from icalendar import Calendar
+import urllib.request
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 # ==============================
 # 💪 WORKOUT DATA CONFIGURATION
 # ==============================
@@ -289,32 +293,22 @@ exercises = {
 }
 
 # ==============================
-# 🗓️ CALENDAR CONFIG
+# 🗓️ CALENDAR CONFIG - URL REAL DE TU CALENDARIO
 # ==============================
-APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
-
-# Datos de ejemplo del calendario (reemplaza con tus eventos reales)
-WORKOUT_SCHEDULE = {
-    "monday": ["Chest & Triceps - Day 1", "Cardio: 30min"],
-    "tuesday": ["Back & Biceps - Day 1", "Abs: 15min"],
-    "wednesday": ["Legs & Shoulders - Day 1", "Stretching: 20min"],
-    "thursday": ["Chest & Triceps - Day 2", "Cardio: 30min"],
-    "friday": ["Back & Biceps - Day 2", "Abs: 15min"],
-    "saturday": ["Legs & Shoulders - Day 2", "Yoga: 30min"],
-    "sunday": ["Rest Day", "Active Recovery"]
-}
+# Esta es la URL pública de tu calendario iCloud
+ICAL_URL = "https://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
 
 # ==============================
 # 🖥️ ROUTES
 # ==============================
 @app.route('/')
 def home():
-    """Página de inicio simplificada"""
-    return render_template('home.html', calendar_url=APPLE_CALENDAR_URL)
+    """Página de inicio"""
+    return render_template('home.html', calendar_url=ICAL_URL)
 
 @app.route('/workout')
 def workout():
-    """Página de ejercicios con imágenes completas"""
+    """Página de ejercicios"""
     category = request.args.get('category')
     day = request.args.get('day')
     selected = None
@@ -326,7 +320,7 @@ def workout():
 
 @app.route('/api/workout-progress')
 def workout_progress():
-    """API para datos de progreso (opcional)"""
+    """API para datos de progreso"""
     progress_data = {
         'completed_workouts': 12,
         'total_workouts': 16,
@@ -335,61 +329,122 @@ def workout_progress():
     }
     return jsonify(progress_data)
 
-@app.route('/api/calendar-events')
-def calendar_events():
-    """API para obtener eventos del calendario"""
-    # En una implementación real, aquí procesarías el calendario iCal
-    # Por ahora usamos datos de ejemplo
-    events = generate_sample_events()
-    return jsonify(events)
+@app.route('/api/real-calendar-events')
+def real_calendar_events():
+    """API para obtener eventos REALES del calendario iCloud"""
+    try:
+        events = get_real_ical_events()
+        return jsonify({
+            'success': True,
+            'events': events,
+            'last_updated': datetime.now().isoformat()
+        })
+    except Exception as e:
+        print(f"Error fetching calendar: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'events': get_fallback_events()
+        })
 
-def generate_sample_events():
-    """Generar eventos de ejemplo del calendario"""
+def get_real_ical_events():
+    """Obtener eventos reales del calendario iCloud"""
     events = []
-    today = datetime.now()
     
-    # Generar eventos para los próximos 14 días
-    for i in range(14):
-        date = today + timedelta(days=i)
-        day_name = date.strftime("%A").lower()
+    try:
+        # Descargar el archivo iCal
+        response = requests.get(ICAL_URL, timeout=10)
+        response.raise_for_status()
         
-        if day_name in WORKOUT_SCHEDULE:
-            for workout in WORKOUT_SCHEDULE[day_name]:
-                events.append({
-                    'title': workout,
-                    'start': date.strftime("%Y-%m-%d"),
-                    'color': get_workout_color(workout),
-                    'time': get_workout_time(day_name),
-                    'completed': i < 2  # Marcar algunos como completados
-                })
+        # Parsear el calendario iCal
+        cal = Calendar.from_ical(response.text)
+        
+        today = datetime.now().date()
+        start_date = today - timedelta(days=7)  # Una semana atrás
+        end_date = today + timedelta(days=30)   # Un mes adelante
+        
+        for component in cal.walk():
+            if component.name == "VEVENT":
+                start_dt = component.get('dtstart').dt
+                end_dt = component.get('dtend').dt
+                summary = str(component.get('summary', ''))
+                description = str(component.get('description', ''))
+                
+                # Convertir a datetime si es solo date
+                if isinstance(start_dt, datetime):
+                    event_date = start_dt
+                else:
+                    event_date = datetime.combine(start_dt, datetime.min.time())
+                
+                # Filtrar eventos en el rango de fechas
+                if start_date <= event_date.date() <= end_date:
+                    event_data = {
+                        'title': summary,
+                        'start': event_date.isoformat(),
+                        'end': end_dt.isoformat() if end_dt else event_date.isoformat(),
+                        'description': description,
+                        'color': get_event_color(summary),
+                        'allDay': not isinstance(start_dt, datetime),
+                        'location': str(component.get('location', ''))
+                    }
+                    events.append(event_data)
+        
+        # Ordenar eventos por fecha
+        events.sort(key=lambda x: x['start'])
+        
+    except Exception as e:
+        print(f"Error parsing iCal: {e}")
+        raise e
     
     return events
 
-def get_workout_color(workout):
-    """Asignar colores según el tipo de workout"""
-    if "Chest" in workout:
+def get_event_color(event_title):
+    """Asignar colores basado en el contenido del evento"""
+    title_lower = event_title.lower()
+    
+    if any(word in title_lower for word in ['chest', 'bench', 'press']):
         return "#6366f1"  # Primary
-    elif "Back" in workout:
+    elif any(word in title_lower for word in ['back', 'pull', 'row']):
         return "#f59e0b"  # Warning
-    elif "Legs" in workout:
+    elif any(word in title_lower for word in ['legs', 'squat', 'deadlift']):
         return "#10b981"  # Success
-    elif "Rest" in workout:
-        return "#64748b"  # Gray
-    else:
+    elif any(word in title_lower for word in ['shoulders', 'press', 'raise']):
         return "#8b5cf6"  # Purple
+    elif any(word in title_lower for word in ['rest', 'recovery', 'off']):
+        return "#64748b"  # Gray
+    elif any(word in title_lower for word in ['cardio', 'run', 'bike']):
+        return "#ef4444"  # Danger
+    else:
+        return "#06b6d4"  # Cyan
 
-def get_workout_time(day):
-    """Horarios de ejemplo para los workouts"""
-    times = {
-        "monday": "07:00",
-        "tuesday": "07:00", 
-        "wednesday": "07:00",
-        "thursday": "18:00",
-        "friday": "18:00",
-        "saturday": "09:00",
-        "sunday": "10:00"
-    }
-    return times.get(day, "07:00")
+def get_fallback_events():
+    """Eventos de respaldo si falla la conexión al calendario"""
+    today = datetime.now()
+    events = []
+    
+    workout_days = [
+        ("Chest & Triceps - Day 1", 0, "#6366f1"),
+        ("Back & Biceps - Day 1", 1, "#f59e0b"),
+        ("Legs & Shoulders - Day 1", 2, "#10b981"),
+        ("Cardio - 30min", 3, "#ef4444"),
+        ("Chest & Triceps - Day 2", 4, "#6366f1"),
+        ("Back & Biceps - Day 2", 5, "#f59e0b"),
+        ("Rest Day", 6, "#64748b")
+    ]
+    
+    for title, day_offset, color in workout_days:
+        event_date = today + timedelta(days=day_offset)
+        events.append({
+            'title': title,
+            'start': event_date.replace(hour=7, minute=0, second=0).isoformat(),
+            'end': event_date.replace(hour=8, minute=0, second=0).isoformat(),
+            'color': color,
+            'allDay': False,
+            'description': 'Workout session',
+            'isFallback': True
+        })
+    
+    return events
 
 # ==============================
 # 🚀 RUN APP
