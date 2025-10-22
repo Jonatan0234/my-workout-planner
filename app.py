@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import requests
-import json
+import re
 
 app = Flask(__name__)
 
@@ -270,7 +270,7 @@ exercises = {
 }
 
 # ==============================
-# 🗓️ CALENDAR CONFIG
+# 🗓️ CALENDAR CONFIG - URL REAL
 # ==============================
 APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
 
@@ -279,12 +279,10 @@ APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwND
 # ==============================
 @app.route('/')
 def home():
-    """Página de inicio"""
     return render_template('home.html', calendar_url=APPLE_CALENDAR_URL)
 
 @app.route('/workout')
 def workout():
-    """Página de ejercicios"""
     category = request.args.get('category')
     day = request.args.get('day')
     selected = None
@@ -296,7 +294,6 @@ def workout():
 
 @app.route('/api/workout-progress')
 def workout_progress():
-    """API para datos de progreso"""
     progress_data = {
         'completed_workouts': 12,
         'total_workouts': 16,
@@ -305,206 +302,198 @@ def workout_progress():
     }
     return jsonify(progress_data)
 
-@app.route('/api/calendar-events')
-def calendar_events():
-    """API para obtener eventos del calendario - SOLUCIÓN REAL"""
+@app.route('/api/real-calendar-events')
+def real_calendar_events():
+    """SOLO eventos REALES del calendario - SIN eventos smart"""
     try:
-        # SOLUCIÓN 1: Intentar cargar calendario real
-        real_events = try_load_real_calendar()
-        if real_events:
+        events = get_real_iphone_calendar_events()
+        
+        if events:
             return jsonify({
                 'success': True,
-                'events': real_events,
-                'count': len(real_events),
-                'message': f'✅ Cargados {len(real_events)} eventos REALES de tu iPhone',
+                'events': events,
+                'count': len(events),
+                'message': f'✅ Cargados {len(events)} eventos REALES de tu iPhone',
                 'source': 'iphone'
             })
-        
-        # SOLUCIÓN 2: Eventos de ejemplo inteligentes
-        smart_events = create_smart_calendar_events()
-        return jsonify({
-            'success': True,
-            'events': smart_events,
-            'count': len(smart_events),
-            'message': '📅 Usando calendario inteligente - Agrega eventos en tu iPhone para verlos aquí',
-            'source': 'smart'
-        })
-        
+        else:
+            return jsonify({
+                'success': False,
+                'events': [],
+                'count': 0,
+                'message': '📭 No se encontraron eventos en tu calendario de iPhone',
+                'source': 'iphone'
+            })
+            
     except Exception as e:
-        # SOLUCIÓN 3: Fallback robusto
-        fallback_events = create_fallback_events()
+        print(f"Error cargando calendario real: {str(e)}")
         return jsonify({
             'success': False,
-            'events': fallback_events,
-            'count': len(fallback_events),
-            'message': '⚠️ No se pudo conectar al calendario - Usando datos de ejemplo',
-            'error': str(e),
-            'source': 'fallback'
+            'events': [],
+            'count': 0,
+            'message': f'❌ Error conectando a tu calendario: {str(e)}',
+            'source': 'error'
         })
 
-def try_load_real_calendar():
-    """Intentar cargar calendario real - MÉTODO DIRECTO"""
+def get_real_iphone_calendar_events():
+    """Obtener eventos REALES del calendario de iPhone"""
     try:
-        # Convertir webcal a https
+        # Convertir webcal:// a https://
         ical_url = APPLE_CALENDAR_URL.replace('webcal://', 'https://')
+        print(f"Intentando conectar a: {ical_url}")
         
-        # Intentar descargar el calendario
-        response = requests.get(ical_url, timeout=10)
+        # Headers para simular un navegador
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
+        }
         
-        if response.status_code == 200:
-            # Si tenemos contenido, procesarlo
-            return parse_ical_content(response.text)
-        else:
-            return None
-            
+        # Descargar el archivo iCal
+        response = requests.get(ical_url, headers=headers, timeout=15, verify=False)
+        response.raise_for_status()
+        
+        print(f"✅ Calendario descargado. Tamaño: {len(response.text)} caracteres")
+        
+        # Parsear eventos del iCal
+        events = parse_ical_events(response.text)
+        print(f"✅ Eventos parseados: {len(events)}")
+        
+        return events
+        
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error de conexión: {str(e)}")
+        raise Exception(f"No se pudo conectar al calendario: {str(e)}")
     except Exception as e:
-        print(f"No se pudo cargar calendario real: {e}")
-        return None
+        print(f"❌ Error inesperado: {str(e)}")
+        raise e
 
-def parse_ical_content(ical_text):
-    """Parsear contenido iCal de forma simple"""
+def parse_ical_events(ical_content):
+    """Parsear eventos desde contenido iCal REAL"""
     events = []
-    lines = ical_text.split('\n')
     
-    current_event = {}
-    in_event = False
+    # Buscar todos los eventos en el contenido iCal
+    event_blocks = re.findall(r'BEGIN:VEVENT(.*?)END:VEVENT', ical_content, re.DOTALL)
     
-    for line in lines:
-        line = line.strip()
-        
-        if line == 'BEGIN:VEVENT':
-            in_event = True
-            current_event = {}
-        elif line == 'END:VEVENT':
-            in_event = False
-            if current_event.get('SUMMARY'):
-                event = create_event_from_ical(current_event)
-                if event:
-                    events.append(event)
-            current_event = {}
-        elif in_event and ':' in line:
-            key, value = line.split(':', 1)
-            current_event[key] = value
+    print(f"Encontrados {len(event_blocks)} bloques de evento")
+    
+    for block in event_blocks:
+        try:
+            event_data = parse_event_block(block)
+            if event_data and is_recent_event(event_data):
+                events.append(event_data)
+        except Exception as e:
+            print(f"Error parseando evento: {str(e)}")
+            continue
+    
+    # Ordenar eventos por fecha
+    events.sort(key=lambda x: x['start'])
     
     return events
 
-def create_event_from_ical(ical_event):
-    """Crear evento desde datos iCal"""
-    try:
-        summary = ical_event.get('SUMMARY', 'Workout')
-        start_str = ical_event.get('DTSTART', '')
-        
-        # Parsear fecha básica
-        start_date = parse_basic_ical_date(start_str)
-        
-        return {
-            'title': summary,
-            'start': start_date.isoformat(),
-            'end': (start_date + timedelta(hours=1)).isoformat(),
-            'color': get_event_color(summary),
-            'allDay': len(start_str) == 8,  # YYYYMMDD
-            'description': ical_event.get('DESCRIPTION', ''),
-            'isReal': True
-        }
-    except:
+def parse_event_block(block):
+    """Parsear un bloque de evento individual"""
+    event = {}
+    
+    # Extraer campos principales
+    summary_match = re.search(r'SUMMARY:(.*?)(?:\n|$)', block)
+    dtstart_match = re.search(r'DTSTART(?:;VALUE=DATE)?:(.*?)(?:\n|$)', block)
+    dtend_match = re.search(r'DTEND(?:;VALUE=DATE)?:(.*?)(?:\n|$)', block)
+    description_match = re.search(r'DESCRIPTION:(.*?)(?:\n|$)', block)
+    location_match = re.search(r'LOCATION:(.*?)(?:\n|$)', block)
+    
+    if summary_match:
+        event['title'] = clean_ical_text(summary_match.group(1))
+    else:
         return None
+    
+    # Parsear fechas
+    if dtstart_match:
+        event['start'] = parse_ical_datetime(dtstart_match.group(1))
+        event['allDay'] = len(dtstart_match.group(1)) == 8  # YYYYMMDD = todo el día
+    else:
+        return None
+    
+    if dtend_match:
+        event['end'] = parse_ical_datetime(dtend_match.group(1))
+    else:
+        # Si no hay end, asumir 1 hora de duración
+        event['end'] = event['start'] + timedelta(hours=1)
+    
+    # Campos opcionales
+    if description_match:
+        event['description'] = clean_ical_text(description_match.group(1))
+    
+    if location_match:
+        event['location'] = clean_ical_text(location_match.group(1))
+    
+    # Información adicional
+    event['color'] = get_event_color(event['title'])
+    event['isReal'] = True
+    event['date'] = event['start'].strftime("%Y-%m-%d")
+    event['day_name'] = event['start'].strftime("%A")
+    event['day_number'] = event['start'].day
+    event['month_name'] = event['start'].strftime("%B")
+    
+    return event
 
-def parse_basic_ical_date(date_str):
-    """Parsear fecha iCal básica"""
+def parse_ical_datetime(datetime_str):
+    """Parsear fecha/hora desde formato iCal"""
     try:
-        if len(date_str) == 8:  # YYYYMMDD
-            return datetime.strptime(date_str, '%Y%m%d')
+        # Formato: YYYYMMDDTHHMMSS o YYYYMMDD
+        if 'T' in datetime_str:
+            # Con hora
+            return datetime.strptime(datetime_str, '%Y%m%dT%H%M%S')
         else:
+            # Solo fecha (todo el día)
+            return datetime.strptime(datetime_str, '%Y%m%d')
+    except ValueError:
+        # Intentar formato alternativo
+        try:
+            return datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+        except:
+            print(f"⚠️ No se pudo parsear fecha: {datetime_str}")
             return datetime.now()
-    except:
-        return datetime.now()
 
-# ... (el resto del código permanece igual)
+def clean_ical_text(text):
+    """Limpiar texto iCal (quitar secuencias de escape)"""
+    # Reemplazar secuencias escapadas
+    text = text.replace('\\n', ' ').replace('\\,', ',').replace('\\;', ';')
+    # Quitar espacios extra
+    return text.strip()
 
-def create_smart_calendar_events():
-    """Crear eventos de calendario inteligentes distribuidos correctamente"""
-    today = datetime.now()
-    events = []
+def is_recent_event(event):
+    """Filtrar solo eventos recientes o futuros"""
+    now = datetime.now()
+    event_date = event['start']
     
-    # Definir la rutina semanal empezando desde hoy
-    workout_routine = [
-        ("🏋️ Chest & Triceps - Day 1", 0, "#6366f1", "Bench Press, Incline Press, Triceps Dips"),
-        ("💪 Back & Biceps - Day 1", 1, "#f59e0b", "Pull-ups, Barbell Rows, Bicep Curls"), 
-        ("🦵 Legs & Shoulders - Day 1", 2, "#10b981", "Squats, Lunges, Overhead Press"),
-        ("🏃 Cardio & Core", 3, "#ef4444", "Running 30min, Abs workout"),
-        ("🏋️ Chest & Triceps - Day 2", 4, "#6366f1", "Chest Fly, Push-ups, Cable Pushdowns"),
-        ("💪 Back & Biceps - Day 2", 5, "#f59e0b", "Lat Pulldowns, Seated Rows, Hammer Curls"),
-        ("🦵 Legs & Shoulders - Day 2", 6, "#10b981", "Leg Press, RDL, Arnold Press"),
-        ("🧘 Rest & Recovery", 7, "#64748b", "Active recovery, Stretching")
-    ]
+    # Mostrar eventos desde 7 días atrás hasta 30 días en el futuro
+    start_range = now - timedelta(days=7)
+    end_range = now + timedelta(days=30)
     
-    # Crear eventos para las próximas 2 semanas
-    for week in range(2):  # 2 semanas
-        for day_offset, (title, _, color, description) in enumerate(workout_routine):
-            # Calcular la fecha correcta
-            event_date = today + timedelta(days=(week * 7) + day_offset)
-            
-            # Asignar horarios realistas (mañana o tarde)
-            if day_offset % 2 == 0:
-                start_time = event_date.replace(hour=7, minute=0, second=0)  # Mañana
-            else:
-                start_time = event_date.replace(hour=18, minute=0, second=0)  # Tarde
-                
-            end_time = start_time + timedelta(hours=1)
-            
-            events.append({
-                'title': title,
-                'start': start_time.isoformat(),
-                'end': end_time.isoformat(),
-                'color': color,
-                'allDay': False,
-                'description': description,
-                'isReal': False,
-                'isSmart': True,
-                'date': event_date.strftime("%Y-%m-%d"),
-                'day_name': event_date.strftime("%A"),
-                'day_number': event_date.day,
-                'month_name': event_date.strftime("%B")
-            })
-    
-    return events
+    return start_range <= event_date <= end_range
 
-def create_fallback_events():
-    """Eventos de respaldo con distribución correcta"""
-    today = datetime.now()
-    events = []
+def get_event_color(event_title):
+    """Asignar colores basado en el contenido del evento"""
+    title_lower = event_title.lower()
     
-    # Crear eventos para cada día de la próxima semana
-    for i in range(7):
-        event_date = today + timedelta(days=i)
-        day_name = event_date.strftime("%A")
-        
-        # Asignar workouts diferentes para cada día
-        workouts = {
-            0: ("Morning Strength Training", "#6366f1"),
-            1: ("Cardio & Conditioning", "#ef4444"), 
-            2: ("Upper Body Workout", "#f59e0b"),
-            3: ("Lower Body Power", "#10b981"),
-            4: ("Full Body Circuit", "#8b5cf6"),
-            5: ("Active Recovery", "#64748b"),
-            6: ("Rest Day", "#94a3b8")
-        }
-        
-        title, color = workouts[i]
-        start_time = event_date.replace(hour=9, minute=0, second=0)
-        end_time = start_time + timedelta(hours=1)
-        
-        events.append({
-            'title': f"{title} - {day_name}",
-            'start': start_time.isoformat(),
-            'end': end_time.isoformat(),
-            'color': color,
-            'allDay': False,
-            'isReal': False,
-            'date': event_date.strftime("%Y-%m-%d"),
-            'day_name': day_name,
-            'day_number': event_date.day,
-            'month_name': event_date.strftime("%B")
-        })
-    
-    return events
+    if any(word in title_lower for word in ['chest', 'bench', 'press']):
+        return "#6366f1"
+    elif any(word in title_lower for word in ['back', 'pull', 'row']):
+        return "#f59e0b"
+    elif any(word in title_lower for word in ['legs', 'squat', 'deadlift']):
+        return "#10b981"
+    elif any(word in title_lower for word in ['shoulders', 'press', 'raise']):
+        return "#8b5cf6"
+    elif any(word in title_lower for word in ['cardio', 'run', 'bike', 'swim']):
+        return "#ef4444"
+    elif any(word in title_lower for word in ['rest', 'recovery', 'off']):
+        return "#64748b"
+    elif any(word in title_lower for word in ['yoga', 'stretch', 'flexibility']):
+        return "#06b6d4"
+    else:
+        return "#8b5cf6"  # Color por defecto
+
+# ==============================
+# 🚀 RUN APP
+# ==============================
+if __name__ == '__main__':
+    app.run(debug=True)
