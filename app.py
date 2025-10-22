@@ -270,7 +270,7 @@ exercises = {
 }
 
 # ==============================
-# 🗓️ CALENDAR CONFIG - URL REAL
+# 🗓️ CALENDAR CONFIG - URL PÚBLICA
 # ==============================
 APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
 
@@ -304,66 +304,49 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """SOLO eventos REALES del calendario - SIN eventos smart"""
+    """SOLO eventos REALES del calendario público - SIN eventos smart"""
     try:
-        events = get_real_iphone_calendar_events()
+        events = get_real_calendar_events()
         
-        if events:
-            return jsonify({
-                'success': True,
-                'events': events,
-                'count': len(events),
-                'message': f'✅ Cargados {len(events)} eventos REALES de tu iPhone',
-                'source': 'iphone'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'events': [],
-                'count': 0,
-                'message': '📭 No se encontraron eventos en tu calendario de iPhone',
-                'source': 'iphone'
-            })
+        return jsonify({
+            'success': True,
+            'events': events,
+            'count': len(events),
+            'message': f'✅ Cargados {len(events)} eventos REALES de tu calendario',
+            'source': 'public_calendar'
+        })
             
     except Exception as e:
-        print(f"Error cargando calendario real: {str(e)}")
+        print(f"Error cargando calendario: {str(e)}")
         return jsonify({
             'success': False,
             'events': [],
             'count': 0,
-            'message': f'❌ Error conectando a tu calendario: {str(e)}',
+            'message': f'❌ Error: {str(e)}',
             'source': 'error'
         })
 
-def get_real_iphone_calendar_events():
-    """Obtener eventos REALES del calendario de iPhone"""
+def get_real_calendar_events():
+    """Obtener eventos REALES del calendario público"""
     try:
         # Convertir webcal:// a https://
         ical_url = APPLE_CALENDAR_URL.replace('webcal://', 'https://')
-        print(f"Intentando conectar a: {ical_url}")
-        
-        # Headers para simular un navegador
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
-        }
+        print(f"🔗 Conectando a: {ical_url}")
         
         # Descargar el archivo iCal
-        response = requests.get(ical_url, headers=headers, timeout=15, verify=False)
+        response = requests.get(ical_url, timeout=10)
         response.raise_for_status()
         
-        print(f"✅ Calendario descargado. Tamaño: {len(response.text)} caracteres")
+        print(f"📥 Calendario descargado: {len(response.text)} caracteres")
         
         # Parsear eventos del iCal
         events = parse_ical_events(response.text)
-        print(f"✅ Eventos parseados: {len(events)}")
+        print(f"📅 Eventos parseados: {len(events)}")
         
         return events
         
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Error de conexión: {str(e)}")
-        raise Exception(f"No se pudo conectar al calendario: {str(e)}")
     except Exception as e:
-        print(f"❌ Error inesperado: {str(e)}")
+        print(f"❌ Error: {str(e)}")
         raise e
 
 def parse_ical_events(ical_content):
@@ -373,7 +356,7 @@ def parse_ical_events(ical_content):
     # Buscar todos los eventos en el contenido iCal
     event_blocks = re.findall(r'BEGIN:VEVENT(.*?)END:VEVENT', ical_content, re.DOTALL)
     
-    print(f"Encontrados {len(event_blocks)} bloques de evento")
+    print(f"🔍 Encontrados {len(event_blocks)} bloques de evento")
     
     for block in event_blocks:
         try:
@@ -381,7 +364,7 @@ def parse_ical_events(ical_content):
             if event_data and is_recent_event(event_data):
                 events.append(event_data)
         except Exception as e:
-            print(f"Error parseando evento: {str(e)}")
+            print(f"⚠️ Error parseando evento: {str(e)}")
             continue
     
     # Ordenar eventos por fecha
@@ -415,7 +398,6 @@ def parse_event_block(block):
     if dtend_match:
         event['end'] = parse_ical_datetime(dtend_match.group(1))
     else:
-        # Si no hay end, asumir 1 hora de duración
         event['end'] = event['start'] + timedelta(hours=1)
     
     # Campos opcionales
@@ -425,54 +407,45 @@ def parse_event_block(block):
     if location_match:
         event['location'] = clean_ical_text(location_match.group(1))
     
-    # Información adicional
+    # Información adicional para la agrupación CORRECTA
     event['color'] = get_event_color(event['title'])
     event['isReal'] = True
     event['date'] = event['start'].strftime("%Y-%m-%d")
     event['day_name'] = event['start'].strftime("%A")
     event['day_number'] = event['start'].day
     event['month_name'] = event['start'].strftime("%B")
+    event['weekday_number'] = event['start'].weekday()  # 0=Lunes, 6=Domingo
     
     return event
 
 def parse_ical_datetime(datetime_str):
     """Parsear fecha/hora desde formato iCal"""
     try:
-        # Formato: YYYYMMDDTHHMMSS o YYYYMMDD
         if 'T' in datetime_str:
-            # Con hora
             return datetime.strptime(datetime_str, '%Y%m%dT%H%M%S')
         else:
-            # Solo fecha (todo el día)
             return datetime.strptime(datetime_str, '%Y%m%d')
     except ValueError:
-        # Intentar formato alternativo
         try:
             return datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
         except:
-            print(f"⚠️ No se pudo parsear fecha: {datetime_str}")
             return datetime.now()
 
 def clean_ical_text(text):
-    """Limpiar texto iCal (quitar secuencias de escape)"""
-    # Reemplazar secuencias escapadas
+    """Limpiar texto iCal"""
     text = text.replace('\\n', ' ').replace('\\,', ',').replace('\\;', ';')
-    # Quitar espacios extra
     return text.strip()
 
 def is_recent_event(event):
-    """Filtrar solo eventos recientes o futuros"""
+    """Filtrar eventos recientes o futuros"""
     now = datetime.now()
     event_date = event['start']
-    
-    # Mostrar eventos desde 7 días atrás hasta 30 días en el futuro
     start_range = now - timedelta(days=7)
     end_range = now + timedelta(days=30)
-    
     return start_range <= event_date <= end_range
 
 def get_event_color(event_title):
-    """Asignar colores basado en el contenido del evento"""
+    """Asignar colores"""
     title_lower = event_title.lower()
     
     if any(word in title_lower for word in ['chest', 'bench', 'press']):
@@ -487,10 +460,8 @@ def get_event_color(event_title):
         return "#ef4444"
     elif any(word in title_lower for word in ['rest', 'recovery', 'off']):
         return "#64748b"
-    elif any(word in title_lower for word in ['yoga', 'stretch', 'flexibility']):
-        return "#06b6d4"
     else:
-        return "#8b5cf6"  # Color por defecto
+        return "#8b5cf6"
 
 # ==============================
 # 🚀 RUN APP
