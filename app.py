@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import requests
-import re
+from icalendar import Calendar
+import io
 
 app = Flask(__name__)
 
@@ -304,7 +305,7 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """SOLO eventos REALES del calendario público"""
+    """SOLO eventos REALES del calendario público - CON BIBLIOTECA iCalendar"""
     try:
         events = get_real_calendar_events()
         
@@ -317,7 +318,7 @@ def real_calendar_events():
         })
             
     except Exception as e:
-        print(f"Error cargando calendario: {str(e)}")
+        print(f"❌ Error cargando calendario: {str(e)}")
         return jsonify({
             'success': False,
             'events': [],
@@ -327,7 +328,7 @@ def real_calendar_events():
         })
 
 def get_real_calendar_events():
-    """Obtener eventos REALES del calendario público"""
+    """Obtener eventos REALES usando biblioteca iCalendar profesional"""
     try:
         # Convertir webcal:// a https://
         ical_url = APPLE_CALENDAR_URL.replace('webcal://', 'https://')
@@ -339,8 +340,8 @@ def get_real_calendar_events():
         
         print(f"📥 Calendario descargado: {len(response.text)} caracteres")
         
-        # Parsear eventos del iCal
-        events = parse_ical_events(response.text)
+        # Parsear con biblioteca iCalendar profesional
+        events = parse_with_icalendar_lib(response.text)
         print(f"📅 Eventos parseados: {len(events)}")
         
         return events
@@ -349,126 +350,105 @@ def get_real_calendar_events():
         print(f"❌ Error: {str(e)}")
         raise e
 
-def parse_ical_events(ical_content):
-    """Parsear eventos desde contenido iCal REAL - VERSIÓN MEJORADA"""
+def parse_with_icalendar_lib(ical_content):
+    """Parsear usando biblioteca iCalendar profesional"""
     events = []
     
-    # Buscar todos los eventos en el contenido iCal
-    event_blocks = re.findall(r'BEGIN:VEVENT(.*?)END:VEVENT', ical_content, re.DOTALL)
-    
-    print(f"🔍 Encontrados {len(event_blocks)} bloques de evento")
-    
-    for i, block in enumerate(event_blocks):
-        try:
-            event_data = parse_event_block(block)
-            if event_data:
-                # Solo incluir eventos recientes o futuros
-                if is_recent_event(event_data):
-                    events.append(event_data)
-                    print(f"✅ Evento {i+1} añadido: {event_data['title']} - {event_data['date']}")
-                else:
-                    print(f"⏰ Evento {i+1} descartado (fuera de rango): {event_data['title']} - {event_data['date']}")
-            else:
-                print(f"❌ Evento {i+1} descartado: No se pudo parsear")
-        except Exception as e:
-            print(f"⚠️ Error parseando evento {i+1}: {str(e)}")
-            continue
-    
-    # Ordenar eventos por fecha
-    events.sort(key=lambda x: x['start'])
+    try:
+        # Parsear el calendario con la biblioteca
+        cal = Calendar.from_ical(ical_content)
+        
+        # Recorrer todos los componentes del calendario
+        for component in cal.walk():
+            if component.name == "VEVENT":
+                try:
+                    event_data = parse_icalendar_component(component)
+                    if event_data and is_recent_event(event_data):
+                        events.append(event_data)
+                        print(f"✅ Evento añadido: {event_data['title']}")
+                except Exception as e:
+                    print(f"⚠️ Error parseando componente: {str(e)}")
+                    continue
+                    
+    except Exception as e:
+        print(f"❌ Error parseando calendario: {str(e)}")
+        raise e
     
     return events
 
-def parse_event_block(block):
-    """Parsear un bloque de evento individual - VERSIÓN MEJORADA"""
+def parse_icalendar_component(component):
+    """Parsear componente VEVENT usando biblioteca iCalendar"""
     event = {}
     
-    # Extraer campos principales con regex más robustos
-    summary_match = re.search(r'SUMMARY:([^\r\n]*)', block, re.IGNORECASE)
-    dtstart_match = re.search(r'DTSTART(?:;VALUE=DATE)?:([^\r\n]*)', block, re.IGNORECASE)
-    dtend_match = re.search(r'DTEND(?:;VALUE=DATE)?:([^\r\n]*)', block, re.IGNORECASE)
-    description_match = re.search(r'DESCRIPTION:([^\r\n]*)', block, re.IGNORECASE)
-    location_match = re.search(r'LOCATION:([^\r\n]*)', block, re.IGNORECASE)
-    
-    # Verificar campos obligatorios
-    if not summary_match or not dtstart_match:
-        return None
-    
-    # Título del evento
-    event['title'] = clean_ical_text(summary_match.group(1))
-    
-    # Fecha de inicio
-    start_str = dtstart_match.group(1)
-    event['start'] = parse_ical_datetime(start_str)
-    event['allDay'] = len(start_str) == 8  # YYYYMMDD = todo el día
-    
-    # Fecha de fin
-    if dtend_match:
-        event['end'] = parse_ical_datetime(dtend_match.group(1))
-    else:
-        event['end'] = event['start'] + timedelta(hours=1)
-    
-    # Campos opcionales
-    event['description'] = clean_ical_text(description_match.group(1)) if description_match else ''
-    event['location'] = clean_ical_text(location_match.group(1)) if location_match else ''
-    
-    # Información adicional para la agrupación
-    event['color'] = get_event_color(event['title'])
-    event['isReal'] = True
-    event['date'] = event['start'].strftime("%Y-%m-%d")
-    event['day_name'] = event['start'].strftime("%A")
-    event['day_number'] = event['start'].day
-    event['month_name'] = event['start'].strftime("%B")
-    
-    return event
-
-def parse_ical_datetime(datetime_str):
-    """Parsear fecha/hora desde formato iCal - VERSIÓN MEJORADA"""
     try:
-        # Limpiar la cadena
-        datetime_str = datetime_str.strip()
+        # Obtener campos usando la biblioteca
+        summary = component.get('SUMMARY')
+        dtstart = component.get('DTSTART')
+        dtend = component.get('DTEND')
+        description = component.get('DESCRIPTION')
+        location = component.get('LOCATION')
         
-        # Formato: YYYYMMDDTHHMMSS o YYYYMMDD
-        if 'T' in datetime_str:
-            # Con hora - formato: YYYYMMDDTHHMMSS
-            if len(datetime_str) == 15:  # YYYYMMDDTHHMMSS
-                return datetime.strptime(datetime_str, '%Y%m%dT%H%M%S')
-            elif len(datetime_str) == 16 and datetime_str.endswith('Z'):  # YYYYMMDDTHHMMSSZ
-                return datetime.strptime(datetime_str, '%Y%m%dT%H%M%SZ')
-            else:
-                # Intentar parsear como ISO
-                return datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+        # Verificar campos obligatorios
+        if not summary or not dtstart:
+            return None
+        
+        # Título
+        event['title'] = str(summary)
+        
+        # Fechas
+        start_dt = dtstart.dt
+        event['start'] = start_dt
+        
+        if dtend:
+            event['end'] = dtend.dt
         else:
-            # Solo fecha - formato: YYYYMMDD
-            if len(datetime_str) == 8:
-                return datetime.strptime(datetime_str, '%Y%m%d')
+            # Si no hay fecha de fin, asumir 1 hora
+            if isinstance(start_dt, datetime):
+                event['end'] = start_dt + timedelta(hours=1)
             else:
-                # Intentar otros formatos
-                return datetime.fromisoformat(datetime_str)
+                event['end'] = start_dt
+        
+        # Determinar si es todo el día
+        event['allDay'] = isinstance(start_dt, datetime.date) and not isinstance(start_dt, datetime)
+        
+        # Campos opcionales
+        event['description'] = str(description) if description else ''
+        event['location'] = str(location) if location else ''
+        
+        # Convertir a datetime si es solo date (para consistencia)
+        if event['allDay']:
+            event_start = datetime.combine(event['start'], datetime.min.time())
+        else:
+            event_start = event['start']
+        
+        # Información adicional
+        event['color'] = get_event_color(event['title'])
+        event['isReal'] = True
+        event['date'] = event_start.strftime("%Y-%m-%d")
+        event['day_name'] = event_start.strftime("%A")
+        event['day_number'] = event_start.day
+        event['month_name'] = event_start.strftime("%B")
+        
+        return event
+        
     except Exception as e:
-        print(f"⚠️ Error parseando fecha: {datetime_str} - {e}")
-        return datetime.now()
-
-def clean_ical_text(text):
-    """Limpiar texto iCal"""
-    if not text:
-        return ''
-    
-    # Reemplazar secuencias escapadas
-    text = text.replace('\\n', ' ').replace('\\,', ',').replace('\\;', ';')
-    # Quitar espacios extra
-    return text.strip()
+        print(f"❌ Error parseando componente: {str(e)}")
+        return None
 
 def is_recent_event(event):
     """Filtrar solo eventos recientes o futuros"""
     now = datetime.now()
-    event_date = event['start']
     
-    # Mostrar eventos desde 30 días atrás hasta 60 días en el futuro
-    start_range = now - timedelta(days=30)
-    end_range = now + timedelta(days=60)
+    # Obtener la fecha de inicio (manejar tanto date como datetime)
+    event_start = event['start']
+    if isinstance(event_start, datetime.date) and not isinstance(event_start, datetime):
+        event_start = datetime.combine(event_start, datetime.min.time())
     
-    return start_range <= event_date <= end_range
+    # Mostrar eventos desde 60 días atrás hasta 90 días en el futuro
+    start_range = now - timedelta(days=60)
+    end_range = now + timedelta(days=90)
+    
+    return start_range <= event_start <= end_range
 
 def get_event_color(event_title):
     """Asignar colores basado en el contenido del evento"""
