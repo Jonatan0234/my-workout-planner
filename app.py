@@ -304,7 +304,7 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """SOLO eventos REALES del calendario público - SIN eventos smart"""
+    """SOLO eventos REALES del calendario público"""
     try:
         events = get_real_calendar_events()
         
@@ -350,7 +350,7 @@ def get_real_calendar_events():
         raise e
 
 def parse_ical_events(ical_content):
-    """Parsear eventos desde contenido iCal REAL"""
+    """Parsear eventos desde contenido iCal REAL - VERSIÓN MEJORADA"""
     events = []
     
     # Buscar todos los eventos en el contenido iCal
@@ -358,13 +358,20 @@ def parse_ical_events(ical_content):
     
     print(f"🔍 Encontrados {len(event_blocks)} bloques de evento")
     
-    for block in event_blocks:
+    for i, block in enumerate(event_blocks):
         try:
             event_data = parse_event_block(block)
-            if event_data and is_recent_event(event_data):
-                events.append(event_data)
+            if event_data:
+                # Solo incluir eventos recientes o futuros
+                if is_recent_event(event_data):
+                    events.append(event_data)
+                    print(f"✅ Evento {i+1} añadido: {event_data['title']} - {event_data['date']}")
+                else:
+                    print(f"⏰ Evento {i+1} descartado (fuera de rango): {event_data['title']} - {event_data['date']}")
+            else:
+                print(f"❌ Evento {i+1} descartado: No se pudo parsear")
         except Exception as e:
-            print(f"⚠️ Error parseando evento: {str(e)}")
+            print(f"⚠️ Error parseando evento {i+1}: {str(e)}")
             continue
     
     # Ordenar eventos por fecha
@@ -373,79 +380,101 @@ def parse_ical_events(ical_content):
     return events
 
 def parse_event_block(block):
-    """Parsear un bloque de evento individual"""
+    """Parsear un bloque de evento individual - VERSIÓN MEJORADA"""
     event = {}
     
-    # Extraer campos principales
-    summary_match = re.search(r'SUMMARY:(.*?)(?:\n|$)', block)
-    dtstart_match = re.search(r'DTSTART(?:;VALUE=DATE)?:(.*?)(?:\n|$)', block)
-    dtend_match = re.search(r'DTEND(?:;VALUE=DATE)?:(.*?)(?:\n|$)', block)
-    description_match = re.search(r'DESCRIPTION:(.*?)(?:\n|$)', block)
-    location_match = re.search(r'LOCATION:(.*?)(?:\n|$)', block)
+    # Extraer campos principales con regex más robustos
+    summary_match = re.search(r'SUMMARY:([^\r\n]*)', block, re.IGNORECASE)
+    dtstart_match = re.search(r'DTSTART(?:;VALUE=DATE)?:([^\r\n]*)', block, re.IGNORECASE)
+    dtend_match = re.search(r'DTEND(?:;VALUE=DATE)?:([^\r\n]*)', block, re.IGNORECASE)
+    description_match = re.search(r'DESCRIPTION:([^\r\n]*)', block, re.IGNORECASE)
+    location_match = re.search(r'LOCATION:([^\r\n]*)', block, re.IGNORECASE)
     
-    if summary_match:
-        event['title'] = clean_ical_text(summary_match.group(1))
-    else:
+    # Verificar campos obligatorios
+    if not summary_match or not dtstart_match:
         return None
     
-    # Parsear fechas
-    if dtstart_match:
-        event['start'] = parse_ical_datetime(dtstart_match.group(1))
-        event['allDay'] = len(dtstart_match.group(1)) == 8  # YYYYMMDD = todo el día
-    else:
-        return None
+    # Título del evento
+    event['title'] = clean_ical_text(summary_match.group(1))
     
+    # Fecha de inicio
+    start_str = dtstart_match.group(1)
+    event['start'] = parse_ical_datetime(start_str)
+    event['allDay'] = len(start_str) == 8  # YYYYMMDD = todo el día
+    
+    # Fecha de fin
     if dtend_match:
         event['end'] = parse_ical_datetime(dtend_match.group(1))
     else:
         event['end'] = event['start'] + timedelta(hours=1)
     
     # Campos opcionales
-    if description_match:
-        event['description'] = clean_ical_text(description_match.group(1))
+    event['description'] = clean_ical_text(description_match.group(1)) if description_match else ''
+    event['location'] = clean_ical_text(location_match.group(1)) if location_match else ''
     
-    if location_match:
-        event['location'] = clean_ical_text(location_match.group(1))
-    
-    # Información adicional para la agrupación CORRECTA
+    # Información adicional para la agrupación
     event['color'] = get_event_color(event['title'])
     event['isReal'] = True
     event['date'] = event['start'].strftime("%Y-%m-%d")
     event['day_name'] = event['start'].strftime("%A")
     event['day_number'] = event['start'].day
     event['month_name'] = event['start'].strftime("%B")
-    event['weekday_number'] = event['start'].weekday()  # 0=Lunes, 6=Domingo
     
     return event
 
 def parse_ical_datetime(datetime_str):
-    """Parsear fecha/hora desde formato iCal"""
+    """Parsear fecha/hora desde formato iCal - VERSIÓN MEJORADA"""
     try:
+        # Limpiar la cadena
+        datetime_str = datetime_str.strip()
+        
+        # Formato: YYYYMMDDTHHMMSS o YYYYMMDD
         if 'T' in datetime_str:
-            return datetime.strptime(datetime_str, '%Y%m%dT%H%M%S')
+            # Con hora - formato: YYYYMMDDTHHMMSS
+            if len(datetime_str) == 15:  # YYYYMMDDTHHMMSS
+                return datetime.strptime(datetime_str, '%Y%m%dT%H%M%S')
+            elif len(datetime_str) == 16 and datetime_str.endswith('Z'):  # YYYYMMDDTHHMMSSZ
+                return datetime.strptime(datetime_str, '%Y%m%dT%H%M%SZ')
+            else:
+                # Intentar parsear como ISO
+                return datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
         else:
-            return datetime.strptime(datetime_str, '%Y%m%d')
-    except ValueError:
-        try:
-            return datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
-        except:
-            return datetime.now()
+            # Solo fecha - formato: YYYYMMDD
+            if len(datetime_str) == 8:
+                return datetime.strptime(datetime_str, '%Y%m%d')
+            else:
+                # Intentar otros formatos
+                return datetime.fromisoformat(datetime_str)
+    except Exception as e:
+        print(f"⚠️ Error parseando fecha: {datetime_str} - {e}")
+        return datetime.now()
 
 def clean_ical_text(text):
     """Limpiar texto iCal"""
+    if not text:
+        return ''
+    
+    # Reemplazar secuencias escapadas
     text = text.replace('\\n', ' ').replace('\\,', ',').replace('\\;', ';')
+    # Quitar espacios extra
     return text.strip()
 
 def is_recent_event(event):
-    """Filtrar eventos recientes o futuros"""
+    """Filtrar solo eventos recientes o futuros"""
     now = datetime.now()
     event_date = event['start']
-    start_range = now - timedelta(days=7)
-    end_range = now + timedelta(days=30)
+    
+    # Mostrar eventos desde 30 días atrás hasta 60 días en el futuro
+    start_range = now - timedelta(days=30)
+    end_range = now + timedelta(days=60)
+    
     return start_range <= event_date <= end_range
 
 def get_event_color(event_title):
-    """Asignar colores"""
+    """Asignar colores basado en el contenido del evento"""
+    if not event_title:
+        return "#8b5cf6"
+        
     title_lower = event_title.lower()
     
     if any(word in title_lower for word in ['chest', 'bench', 'press']):
@@ -460,6 +489,8 @@ def get_event_color(event_title):
         return "#ef4444"
     elif any(word in title_lower for word in ['rest', 'recovery', 'off']):
         return "#64748b"
+    elif any(word in title_lower for word in ['yoga', 'stretch', 'flexibility']):
+        return "#06b6d4"
     else:
         return "#8b5cf6"
 
