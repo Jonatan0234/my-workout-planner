@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 from icalendar import Calendar
 import io
@@ -339,7 +339,6 @@ def get_real_calendar_events():
         response.raise_for_status()
         
         print(f"📥 Calendario descargado: {len(response.text)} caracteres")
-        print(f"📄 Primeros 500 caracteres: {response.text[:500]}")
         
         # Parsear con biblioteca iCalendar profesional
         events = parse_with_icalendar_lib(response.text)
@@ -349,12 +348,7 @@ def get_real_calendar_events():
         
     except Exception as e:
         print(f"❌ Error cargando calendario: {str(e)}")
-        print(f"🔍 Tipo de error: {type(e)}")
         return []
-        
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        raise e
 
 def parse_with_icalendar_lib(ical_content):
     """Parsear usando biblioteca iCalendar profesional"""
@@ -371,7 +365,7 @@ def parse_with_icalendar_lib(ical_content):
                     event_data = parse_icalendar_component(component)
                     if event_data and is_recent_event(event_data):
                         events.append(event_data)
-                        print(f"✅ Evento añadido: {event_data['title']}")
+                        print(f"✅ Evento añadido: {event_data['title']} - {event_data['date']}")
                 except Exception as e:
                     print(f"⚠️ Error parseando componente: {str(e)}")
                     continue
@@ -383,15 +377,10 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT usando biblioteca iCalendar"""
+    """Parsear componente VEVENT usando biblioteca iCalendar - CORREGIDO PARA TIMEZONES"""
     event = {}
     
     try:
-        # Obtener campos usando la biblioteca
-        summary = component.get('SUMMARY')
-        dtstart = component.get('DTSTART')
-        
-        print(f"🔍 Procesando evento: {summary}, DTSTART: {dtstart}, tipo: {type(dtstart.dt)}")
         # Obtener campos usando la biblioteca
         summary = component.get('SUMMARY')
         dtstart = component.get('DTSTART')
@@ -419,24 +408,20 @@ def parse_icalendar_component(component):
             else:
                 event['end'] = start_dt
         
-        # Determinar si es todo el día
+        # Determinar si es todo el día - CORREGIDO
         event['allDay'] = not isinstance(start_dt, datetime)
-
-        # Convertir a datetime si es solo date (para consistencia)
-        if event['allDay']:
-            event_start = datetime.combine(event['start'], datetime.min.time())
-        else:
-            event_start = event['start']
         
-        # Campos opcionales
-        event['description'] = str(description) if description else ''
-        event['location'] = str(location) if location else ''
-        
-        # Convertir a datetime si es solo date (para consistencia)
+        # Convertir a datetime naive para consistencia
         if event['allDay']:
-            event_start = datetime.combine(event['start'], datetime.min.time())
+            # Para eventos de todo el día, usar fecha sin hora
+            event_start = datetime.combine(start_dt, datetime.min.time())
         else:
-            event_start = event['start']
+            # Para eventos con hora, convertir a naive datetime
+            if start_dt.tzinfo is not None:
+                # Convertir a UTC y luego quitar timezone info
+                event_start = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                event_start = start_dt
         
         # Información adicional
         event['color'] = get_event_color(event['title'])
@@ -446,6 +431,9 @@ def parse_icalendar_component(component):
         event['day_number'] = event_start.day
         event['month_name'] = event_start.strftime("%B")
         
+        # Actualizar el start con el datetime naive para uso interno
+        event['start'] = event_start
+        
         return event
         
     except Exception as e:
@@ -453,15 +441,11 @@ def parse_icalendar_component(component):
         return None
 
 def is_recent_event(event):
-    """Filtrar solo eventos recientes o futuros"""
+    """Filtrar solo eventos recientes o futuros - CORREGIDO para timezones"""
     now = datetime.now()
     
-    # Obtener la fecha de inicio
+    # Obtener la fecha de inicio (ya convertida a naive)
     event_start = event['start']
-    
-    # Si es solo fecha (todo el día), convertir a datetime
-    if not isinstance(event_start, datetime):
-        event_start = datetime.combine(event_start, datetime.min.time())
     
     # Mostrar eventos desde 60 días atrás hasta 90 días en el futuro
     start_range = now - timedelta(days=60)
