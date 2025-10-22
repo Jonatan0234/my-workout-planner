@@ -339,12 +339,18 @@ def get_real_calendar_events():
         response.raise_for_status()
         
         print(f"📥 Calendario descargado: {len(response.text)} caracteres")
+        print(f"📄 Primeros 500 caracteres: {response.text[:500]}")
         
         # Parsear con biblioteca iCalendar profesional
         events = parse_with_icalendar_lib(response.text)
         print(f"📅 Eventos parseados: {len(events)}")
         
         return events
+        
+    except Exception as e:
+        print(f"❌ Error cargando calendario: {str(e)}")
+        print(f"🔍 Tipo de error: {type(e)}")
+        return []
         
     except Exception as e:
         print(f"❌ Error: {str(e)}")
@@ -384,6 +390,11 @@ def parse_icalendar_component(component):
         # Obtener campos usando la biblioteca
         summary = component.get('SUMMARY')
         dtstart = component.get('DTSTART')
+        
+        print(f"🔍 Procesando evento: {summary}, DTSTART: {dtstart}, tipo: {type(dtstart.dt)}")
+        # Obtener campos usando la biblioteca
+        summary = component.get('SUMMARY')
+        dtstart = component.get('DTSTART')
         dtend = component.get('DTEND')
         description = component.get('DESCRIPTION')
         location = component.get('LOCATION')
@@ -409,7 +420,13 @@ def parse_icalendar_component(component):
                 event['end'] = start_dt
         
         # Determinar si es todo el día
-        event['allDay'] = isinstance(start_dt, datetime.date) and not isinstance(start_dt, datetime)
+        event['allDay'] = not isinstance(start_dt, datetime)
+
+        # Convertir a datetime si es solo date (para consistencia)
+        if event['allDay']:
+            event_start = datetime.combine(event['start'], datetime.min.time())
+        else:
+            event_start = event['start']
         
         # Campos opcionales
         event['description'] = str(description) if description else ''
@@ -439,9 +456,11 @@ def is_recent_event(event):
     """Filtrar solo eventos recientes o futuros"""
     now = datetime.now()
     
-    # Obtener la fecha de inicio (manejar tanto date como datetime)
+    # Obtener la fecha de inicio
     event_start = event['start']
-    if isinstance(event_start, datetime.date) and not isinstance(event_start, datetime):
+    
+    # Si es solo fecha (todo el día), convertir a datetime
+    if not isinstance(event_start, datetime):
         event_start = datetime.combine(event_start, datetime.min.time())
     
     # Mostrar eventos desde 60 días atrás hasta 90 días en el futuro
