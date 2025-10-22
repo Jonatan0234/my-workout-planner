@@ -16,7 +16,7 @@ exercises = {
         "day1": {
             "chest": [
                 {
-                    "name": "Bench Press",
+                    "name": "Bench Press prueba",
                     "image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Pictures/Chest/Day1/1.gif",
                     "muscle_image": "https://raw.githubusercontent.com/Jonatan0234/workoutplanner/main/Muscles/Chest.png",
                     "description": "Lie flat on a bench, grip slightly wider than shoulder-width. Lower the bar under control to mid-chest and press up explosively. Keep feet planted and core tight.",
