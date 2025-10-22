@@ -156,82 +156,109 @@
         }
 
         function renderCalendar(data) {
-            const calendarEl = document.getElementById('calendarView');
-            const events = data.events || [];
+        const calendarEl = document.getElementById('calendarView');
+        const events = data.events || [];
+        
+        console.log(`📊 Renderizando ${events.length} eventos REALES`);
+
+        if (events.length === 0) {
+            calendarEl.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-calendar-plus display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted">No Events Found</h3>
+                    <p class="text-muted">No events found in your public calendar.</p>
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Add events to your iPhone Calendar to see them here
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
+                        <i class="fas fa-redo me-2"></i>Try Again
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        // **VISTA SEMANAL MEJORADA**
+        const today = new Date();
+        const currentDay = today.getDay(); // 0 = Domingo, 1 = Lunes, etc.
+        
+        // Calcular el lunes de esta semana
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+        monday.setHours(0, 0, 0, 0);
+
+        // Crear array de la semana (lunes a domingo)
+        const weekDays = [];
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + i);
+            weekDays.push(day);
+        }
+
+        // Agrupar eventos por fecha
+        const eventsByDate = {};
+        events.forEach(event => {
+            const eventDate = new Date(event.datetime);
+            const dateKey = eventDate.toISOString().split('T')[0];
             
-            console.log(`📊 Renderizando ${events.length} eventos REALES`);
-
-            if (events.length === 0) {
-                calendarEl.innerHTML = `
-                    <div class="text-center py-5">
-                        <i class="fas fa-calendar-plus display-1 text-muted mb-4"></i>
-                        <h3 class="text-muted">No Events Found</h3>
-                        <p class="text-muted">No events found in your public calendar.</p>
-                        <div class="alert alert-warning mt-3">
-                            <i class="fas fa-lightbulb me-2"></i>
-                            Add events to your iPhone Calendar to see them here
-                        </div>
-                        <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
-                            <i class="fas fa-redo me-2"></i>Try Again
-                        </button>
-                    </div>
-                `;
-                return;
+            if (!eventsByDate[dateKey]) {
+                eventsByDate[dateKey] = [];
             }
+            eventsByDate[dateKey].push(event);
+        });
 
-            // **CORRECCIÓN CRÍTICA: Agrupar eventos por fecha REAL**
-            const eventsByDate = {};
-            events.forEach(event => {
-                const dateKey = event.date; // YYYY-MM-DD
-                if (!eventsByDate[dateKey]) {
-                    eventsByDate[dateKey] = [];
-                }
-                eventsByDate[dateKey].push(event);
-            });
+        let calendarHTML = `
+            <div class="calendar-week-view">
+                <div class="calendar-week-header">
+        `;
 
-            console.log('Eventos agrupados por fecha:', eventsByDate);
-
-            let calendarHTML = `
-                <div class="calendar-container">
-                    <div class="calendar-header">
-                        <h4>Your Workout Schedule</h4>
-                        <small class="text-muted">${events.length} events found</small>
+        // Encabezados de días
+        const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        weekDays.forEach((day, index) => {
+            const isToday = isSameDay(day, today);
+            calendarHTML += `
+                <div class="calendar-day-header ${isToday ? 'today' : ''}">
+                    <div class="day-name">${dayNames[index]}</div>
+                    <div class="day-date">
+                        ${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'short' })}
+                        ${isToday ? '<span class="today-badge">Hoy</span>' : ''}
                     </div>
-                    <div class="calendar-days">
+                </div>
+            `;
+        });
+
+        calendarHTML += `</div><div class="calendar-week-days">`;
+
+        // Contenido de cada día
+        weekDays.forEach(day => {
+            const dateKey = day.toISOString().split('T')[0];
+            const dayEvents = eventsByDate[dateKey] || [];
+            const isToday = isSameDay(day, today);
+
+            calendarHTML += `
+                <div class="calendar-day-column ${isToday ? 'today' : ''}">
+                    <div class="calendar-day-events">
             `;
 
-            // Ordenar fechas
-            const sortedDates = Object.keys(eventsByDate).sort();
-            
-            // Mostrar cada día con sus eventos
-            sortedDates.forEach(dateKey => {
-                const dayEvents = eventsByDate[dateKey];
-                const firstEvent = dayEvents[0];
-                const eventDate = new Date(firstEvent.start);
-                const dayName = firstEvent.day_name;
-                const dayNumber = firstEvent.day_number;
-                const monthName = firstEvent.month_name;
-                const isToday = isSameDay(eventDate, new Date());
-
+            if (dayEvents.length === 0) {
                 calendarHTML += `
-                    <div class="calendar-day-card ${isToday ? 'today' : ''}">
-                        <div class="day-header">
-                            <div class="day-name">${dayName}</div>
-                            <div class="day-date">
-                                ${monthName} ${dayNumber}
-                                ${isToday ? '<span class="today-badge">Today</span>' : ''}
-                            </div>
-                        </div>
-                        <div class="day-events">
+                    <div class="no-events">
+                        <i class="fas fa-calendar-times"></i>
+                        <span>Sin eventos</span>
+                    </div>
                 `;
-
+            } else {
+                // Ordenar eventos por hora
+                dayEvents.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+                
                 dayEvents.forEach(event => {
                     const eventTime = event.allDay ? 
-                        'All Day' : 
-                        new Date(event.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        'Todo el día' : 
+                        new Date(event.datetime).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'});
                     
                     calendarHTML += `
-                        <div class="calendar-event-real" style="border-left-color: ${event.color}">
+                        <div class="calendar-event-item" style="border-left-color: ${event.color}">
                             <div class="event-time">
                                 <i class="fas fa-clock me-1"></i>${eventTime}
                             </div>
@@ -244,16 +271,60 @@
                         </div>
                     `;
                 });
-
-                calendarHTML += `
-                        </div>
-                    </div>
-                `;
-            });
+            }
 
             calendarHTML += `</div></div>`;
-            calendarEl.innerHTML = calendarHTML;
-        }
+        });
+
+        calendarHTML += `</div></div>`;
+        
+        // Añadir navegación semanal
+        const navHTML = `
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <h4 class="mb-0">
+                        <i class="fas fa-calendar-week text-primary me-2"></i>
+                        Semana del ${weekDays[0].getDate()} ${weekDays[0].toLocaleDateString('es-ES', { month: 'long' })} al 
+                        ${weekDays[6].getDate()} ${weekDays[6].toLocaleDateString('es-ES', { month: 'long' })}
+                    </h4>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-light" onclick="changeWeek(-1)">
+                            <i class="fas fa-chevron-left me-2"></i>Semana anterior
+                        </button>
+                        <button class="btn btn-primary" onclick="goToCurrentWeek()">
+                            <i class="fas fa-calendar-day me-2"></i>Hoy
+                        </button>
+                        <button class="btn btn-outline-light" onclick="changeWeek(1)">
+                            Semana siguiente<i class="fas fa-chevron-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        calendarEl.innerHTML = navHTML + calendarHTML;
+    }
+
+    // Funciones de navegación semanal
+    let currentWeekOffset = 0;
+
+    function changeWeek(weeks) {
+        currentWeekOffset += weeks;
+        loadRealCalendar();
+    }
+
+    function goToCurrentWeek() {
+        currentWeekOffset = 0;
+        loadRealCalendar();
+    }
+
+    function isSameDay(date1, date2) {
+        return date1.getDate() === date2.getDate() &&
+            date1.getMonth() === date2.getMonth() &&
+            date1.getFullYear() === date2.getFullYear();
+    }
 
         function isSameDay(date1, date2) {
             return date1.getDate() === date2.getDate() &&
