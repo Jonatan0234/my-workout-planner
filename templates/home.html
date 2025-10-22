@@ -87,6 +87,21 @@
                             </div>
                         </div>
 
+                        <!-- Week Navigation -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <button class="btn btn-outline-light btn-sm" onclick="changeWeek(-1)">
+                                        <i class="fas fa-chevron-left me-2"></i>Previous Week
+                                    </button>
+                                    <h5 class="mb-0" id="weekRange">This Week</h5>
+                                    <button class="btn btn-outline-light btn-sm" onclick="changeWeek(1)">
+                                        Next Week<i class="fas fa-chevron-right ms-2"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Calendar View -->
                         <div id="calendarView">
                             <div class="text-center py-5">
@@ -124,7 +139,7 @@
                                 <div class="alert alert-info mb-0">
                                     <small>
                                         <i class="fas fa-info-circle me-1"></i>
-                                        Calendar updates automatically
+                                        Events distributed across actual dates
                                     </small>
                                 </div>
                             </div>
@@ -138,6 +153,8 @@
     <!-- Bootstrap & Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        let currentWeekOffset = 0;
+
         // Cargar calendario al iniciar
         document.addEventListener('DOMContentLoaded', function() {
             loadCalendar();
@@ -186,7 +203,7 @@
                     <div class="text-center py-5">
                         <i class="fas fa-calendar-plus display-1 text-muted mb-4"></i>
                         <h3 class="text-muted">No Workouts Scheduled</h3>
-                        <p class="text-muted">Add workout events to your iPhone calendar to see them here.</p>
+                        <p class="text-muted">Add workout events to see them here.</p>
                         <button class="btn btn-primary mt-3" onclick="loadCalendar()">
                             <i class="fas fa-redo me-2"></i>Try Again
                         </button>
@@ -195,41 +212,43 @@
                 return;
             }
 
+            // Calcular el rango de la semana actual
+            const weekStart = getWeekStartDate(currentWeekOffset);
+            const weekDays = getWeekDays(weekStart);
+            
+            updateWeekRangeDisplay(weekStart);
+
             let calendarHTML = `
                 <div class="calendar-week-view">
                     <div class="calendar-week-header">
-                        <div class="calendar-day-header">Monday</div>
-                        <div class="calendar-day-header">Tuesday</div>
-                        <div class="calendar-day-header">Wednesday</div>
-                        <div class="calendar-day-header">Thursday</div>
-                        <div class="calendar-day-header">Friday</div>
-                        <div class="calendar-day-header">Saturday</div>
-                        <div class="calendar-day-header">Sunday</div>
+            `;
+
+            // Crear encabezados de días con fechas reales
+            weekDays.forEach(day => {
+                const isToday = isSameDay(day.date, new Date());
+                calendarHTML += `
+                    <div class="calendar-day-header ${isToday ? 'today' : ''}">
+                        <div class="day-name">${day.name}</div>
+                        <div class="day-date">${day.date.getDate()} ${day.date.toLocaleDateString('en', {month: 'short'})}</div>
+                        ${isToday ? '<div class="today-badge">Today</div>' : ''}
+                    </div>
+                `;
+            });
+
+            calendarHTML += `
                     </div>
                     <div class="calendar-week-days">
             `;
 
-            // Agrupar eventos por día de la semana
-            const eventsByDay = [[], [], [], [], [], [], []];
-            
-            events.forEach(event => {
-                const eventDate = new Date(event.start);
-                const dayOfWeek = eventDate.getDay(); // 0=Sunday, 1=Monday, etc.
-                // Convertir a nuestro array (0=Monday)
-                const arrayIndex = (dayOfWeek + 6) % 7;
-                if (arrayIndex >= 0 && arrayIndex < 7) {
-                    eventsByDay[arrayIndex].push(event);
-                }
-            });
+            // Crear columnas para cada día con eventos correspondientes
+            weekDays.forEach(day => {
+                const dayEvents = events.filter(event => {
+                    const eventDate = new Date(event.start);
+                    return isSameDay(eventDate, day.date);
+                });
 
-            // Renderizar cada día
-            for (let i = 0; i < 7; i++) {
-                const dayEvents = eventsByDay[i];
-                const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                
                 calendarHTML += `
                     <div class="calendar-day-column">
-                        <div class="calendar-day-title">${dayNames[i]}</div>
                         <div class="calendar-day-events">
                 `;
                 
@@ -240,23 +259,75 @@
                             <div class="calendar-event-item" style="border-left-color: ${event.color}">
                                 <div class="event-time">${eventTime}</div>
                                 <div class="event-title">${event.title}</div>
+                                ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
                                 ${event.isReal ? '<span class="event-badge real">REAL</span>' : ''}
                                 ${event.isSmart ? '<span class="event-badge smart">SMART</span>' : ''}
                             </div>
                         `;
                     });
                 } else {
-                    calendarHTML += `<div class="no-events">No workouts</div>`;
+                    calendarHTML += `
+                        <div class="no-events">
+                            <i class="fas fa-dumbbell text-muted mb-2"></i>
+                            <div>No workouts</div>
+                        </div>
+                    `;
                 }
                 
                 calendarHTML += `
                         </div>
                     </div>
                 `;
-            }
+            });
 
             calendarHTML += `</div></div>`;
             calendarEl.innerHTML = calendarHTML;
+        }
+
+        function getWeekStartDate(weekOffset = 0) {
+            const today = new Date();
+            const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+            // Calcular el lunes de esta semana
+            const monday = new Date(today);
+            const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Ajustar para que la semana empiece en lunes
+            monday.setDate(today.getDate() + diff + (weekOffset * 7));
+            monday.setHours(0, 0, 0, 0);
+            return monday;
+        }
+
+        function getWeekDays(startDate) {
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                days.push({
+                    date: date,
+                    name: date.toLocaleDateString('en', { weekday: 'long' }),
+                    shortName: date.toLocaleDateString('en', { weekday: 'short' })
+                });
+            }
+            return days;
+        }
+
+        function isSameDay(date1, date2) {
+            return date1.getDate() === date2.getDate() &&
+                   date1.getMonth() === date2.getMonth() &&
+                   date1.getFullYear() === date2.getFullYear();
+        }
+
+        function updateWeekRangeDisplay(startDate) {
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            
+            const startStr = startDate.toLocaleDateString();
+            const endStr = endDate.toLocaleDateString();
+            
+            document.getElementById('weekRange').textContent = `${startStr} - ${endStr}`;
+        }
+
+        function changeWeek(direction) {
+            currentWeekOffset += direction;
+            loadCalendar();
         }
 
         function updateStatus(data) {

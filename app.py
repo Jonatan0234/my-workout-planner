@@ -419,12 +419,14 @@ def parse_basic_ical_date(date_str):
     except:
         return datetime.now()
 
+# ... (el resto del código permanece igual)
+
 def create_smart_calendar_events():
-    """Crear eventos de calendario inteligentes basados en tu rutina"""
+    """Crear eventos de calendario inteligentes distribuidos correctamente"""
     today = datetime.now()
     events = []
     
-    # Tu rutina de entrenamiento semanal
+    # Definir la rutina semanal empezando desde hoy
     workout_routine = [
         ("🏋️ Chest & Triceps - Day 1", 0, "#6366f1", "Bench Press, Incline Press, Triceps Dips"),
         ("💪 Back & Biceps - Day 1", 1, "#f59e0b", "Pull-ups, Barbell Rows, Bicep Curls"), 
@@ -436,73 +438,73 @@ def create_smart_calendar_events():
         ("🧘 Rest & Recovery", 7, "#64748b", "Active recovery, Stretching")
     ]
     
-    for i in range(14):  # Próximos 14 días
-        for title, day_offset, color, description in workout_routine:
-            if i % 7 == day_offset:
-                event_date = today + timedelta(days=i)
-                start_time = event_date.replace(hour=18, minute=0, second=0)
-                end_time = start_time + timedelta(hours=1)
+    # Crear eventos para las próximas 2 semanas
+    for week in range(2):  # 2 semanas
+        for day_offset, (title, _, color, description) in enumerate(workout_routine):
+            # Calcular la fecha correcta
+            event_date = today + timedelta(days=(week * 7) + day_offset)
+            
+            # Asignar horarios realistas (mañana o tarde)
+            if day_offset % 2 == 0:
+                start_time = event_date.replace(hour=7, minute=0, second=0)  # Mañana
+            else:
+                start_time = event_date.replace(hour=18, minute=0, second=0)  # Tarde
                 
-                events.append({
-                    'title': title,
-                    'start': start_time.isoformat(),
-                    'end': end_time.isoformat(),
-                    'color': color,
-                    'allDay': False,
-                    'description': description,
-                    'isReal': False,
-                    'isSmart': True
-                })
-    
-    return events[:20]  # Limitar a 20 eventos
-
-def create_fallback_events():
-    """Eventos de respaldo"""
-    today = datetime.now()
-    events = []
-    
-    basic_workouts = [
-        ("Morning Workout", 0, "#6366f1"),
-        ("Evening Training", 1, "#f59e0b"),
-        ("Cardio Session", 2, "#10b981"),
-        ("Strength Training", 3, "#8b5cf6"),
-        ("Rest Day", 6, "#64748b")
-    ]
-    
-    for title, day_offset, color in basic_workouts:
-        event_date = today + timedelta(days=day_offset)
-        start_time = event_date.replace(hour=9, minute=0, second=0)
-        
-        events.append({
-            'title': title,
-            'start': start_time.isoformat(),
-            'end': (start_time + timedelta(hours=1)).isoformat(),
-            'color': color,
-            'allDay': False,
-            'isReal': False
-        })
+            end_time = start_time + timedelta(hours=1)
+            
+            events.append({
+                'title': title,
+                'start': start_time.isoformat(),
+                'end': end_time.isoformat(),
+                'color': color,
+                'allDay': False,
+                'description': description,
+                'isReal': False,
+                'isSmart': True,
+                'date': event_date.strftime("%Y-%m-%d"),
+                'day_name': event_date.strftime("%A"),
+                'day_number': event_date.day,
+                'month_name': event_date.strftime("%B")
+            })
     
     return events
 
-def get_event_color(event_title):
-    """Asignar colores a eventos"""
-    title_lower = event_title.lower()
+def create_fallback_events():
+    """Eventos de respaldo con distribución correcta"""
+    today = datetime.now()
+    events = []
     
-    if any(word in title_lower for word in ['chest', 'bench', 'press']):
-        return "#6366f1"
-    elif any(word in title_lower for word in ['back', 'pull', 'row']):
-        return "#f59e0b"
-    elif any(word in title_lower for word in ['legs', 'squat', 'deadlift']):
-        return "#10b981"
-    elif any(word in title_lower for word in ['cardio', 'run', 'bike']):
-        return "#ef4444"
-    elif any(word in title_lower for word in ['rest', 'recovery']):
-        return "#64748b"
-    else:
-        return "#8b5cf6"
-
-# ==============================
-# 🚀 RUN APP
-# ==============================
-if __name__ == '__main__':
-    app.run(debug=True)
+    # Crear eventos para cada día de la próxima semana
+    for i in range(7):
+        event_date = today + timedelta(days=i)
+        day_name = event_date.strftime("%A")
+        
+        # Asignar workouts diferentes para cada día
+        workouts = {
+            0: ("Morning Strength Training", "#6366f1"),
+            1: ("Cardio & Conditioning", "#ef4444"), 
+            2: ("Upper Body Workout", "#f59e0b"),
+            3: ("Lower Body Power", "#10b981"),
+            4: ("Full Body Circuit", "#8b5cf6"),
+            5: ("Active Recovery", "#64748b"),
+            6: ("Rest Day", "#94a3b8")
+        }
+        
+        title, color = workouts[i]
+        start_time = event_date.replace(hour=9, minute=0, second=0)
+        end_time = start_time + timedelta(hours=1)
+        
+        events.append({
+            'title': f"{title} - {day_name}",
+            'start': start_time.isoformat(),
+            'end': end_time.isoformat(),
+            'color': color,
+            'allDay': False,
+            'isReal': False,
+            'date': event_date.strftime("%Y-%m-%d"),
+            'day_name': day_name,
+            'day_number': event_date.day,
+            'month_name': event_date.strftime("%B")
+        })
+    
+    return events
