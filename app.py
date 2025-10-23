@@ -377,55 +377,52 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT usando biblioteca iCalendar - SIMPLIFICADO"""
-    event = {}
-    
+    """Parsear componente VEVENT usando biblioteca iCalendar - CORREGIDO DEFINITIVAMENTE"""
     try:
-        # Obtener campos usando la biblioteca
+        # Obtener campos básicos
         summary = component.get('SUMMARY')
         dtstart = component.get('DTSTART')
         
         if not summary or not dtstart:
             return None
         
-        # Título
-        event['title'] = str(summary)
-        
-        # Fechas - MANEJO SIMPLIFICADO
+        # Extraer datetime de forma segura
         start_dt = dtstart.dt
         
-        # Convertir a datetime naive
+        # Crear evento básico
+        event = {
+            'title': str(summary),
+            'isReal': True
+        }
+        
+        # Manejar fecha/hora
         if isinstance(start_dt, datetime):
-            # Ya es datetime, verificar si tiene timezone
-            if start_dt.tzinfo is not None:
+            # Tiene hora específica
+            if start_dt.tzinfo:
                 event_start = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
             else:
                 event_start = start_dt
             event['allDay'] = False
         else:
-            # Es solo fecha (todo el día)
+            # Es todo el día (solo fecha)
             event_start = datetime.combine(start_dt, datetime.min.time())
             event['allDay'] = True
         
-        # Solo eventos desde hoy en adelante
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        if event_start < today:
-            return None
-        
-        # Información adicional
-        event['color'] = get_event_color(event['title'])
-        event['isReal'] = True
+        # NO FILTRAR POR FECHA - dejar que el frontend decida
+        event['datetime'] = event_start.isoformat()
         event['date'] = event_start.strftime("%Y-%m-%d")
         event['day_name'] = event_start.strftime("%A")
         event['day_number'] = event_start.day
         event['month_name'] = event_start.strftime("%B")
-        event['datetime'] = event_start.isoformat()  # Guardar como string para evitar problemas
         
         # Campos opcionales
         description = component.get('DESCRIPTION')
         location = component.get('LOCATION')
         event['description'] = str(description) if description else ''
         event['location'] = str(location) if location else ''
+        
+        # Color basado en título
+        event['color'] = get_event_color(event['title'])
         
         return event
         

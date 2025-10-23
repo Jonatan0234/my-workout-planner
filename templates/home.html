@@ -179,33 +179,37 @@
             return;
         }
 
-        // **VISTA SIMPLIFICADA: 3 días antes, hoy, 4 días después**
+        // **VISTA SIMPLE Y FUNCIONAL - ÚLTIMOS 7 DÍAS Y PRÓXIMOS 7 DÍAS**
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        // Crear array de 8 días
+        // Crear array de 15 días (7 antes + hoy + 7 después)
         const days = [];
-        for (let i = -3; i <= 4; i++) {
+        for (let i = -7; i <= 7; i++) {
             const day = new Date(today);
             day.setDate(today.getDate() + i);
             days.push(day);
         }
 
-        // Agrupar eventos por fecha
+        // Agrupar eventos por fecha de forma SEGURA
         const eventsByDate = {};
         events.forEach(event => {
-            const dateKey = event.date;
-            if (!eventsByDate[dateKey]) {
-                eventsByDate[dateKey] = [];
+            try {
+                const dateKey = event.date; // Esto ya viene formateado del backend
+                if (!eventsByDate[dateKey]) {
+                    eventsByDate[dateKey] = [];
+                }
+                eventsByDate[dateKey].push(event);
+            } catch (e) {
+                console.log('Error procesando evento:', e);
             }
-            eventsByDate[dateKey].push(event);
         });
 
         let calendarHTML = `
             <div class="calendar-container">
                 <div class="calendar-header mb-4">
-                    <h4 class="mb-2">Próximos Eventos</h4>
-                    <small class="text-muted">Mostrando 3 días antes, hoy y 4 días después</small>
+                    <h4 class="mb-2">Calendario de Entrenamientos</h4>
+                    <small class="text-muted">Mostrando 7 días antes y 7 días después de hoy</small>
                 </div>
                 <div class="calendar-days">
         `;
@@ -223,6 +227,7 @@
                         <div class="day-date">
                             ${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'short' })}
                             ${isToday ? '<span class="today-badge">Hoy</span>' : ''}
+                            ${day < today ? '<span class="past-badge">Pasado</span>' : ''}
                         </div>
                     </div>
                     <div class="day-events">
@@ -236,32 +241,37 @@
                     </div>
                 `;
             } else {
-                // Ordenar eventos por hora
+                // Ordenar eventos de forma SEGURA
                 dayEvents.sort((a, b) => {
                     try {
-                        return new Date(a.datetime) - new Date(b.datetime);
+                        const timeA = a.allDay ? '00:00' : new Date(a.datetime).toTimeString();
+                        const timeB = b.allDay ? '00:00' : new Date(b.datetime).toTimeString();
+                        return timeA.localeCompare(timeB);
                     } catch (e) {
                         return 0;
                     }
                 });
                 
                 dayEvents.forEach(event => {
-                    let eventTime;
-                    try {
-                        eventTime = event.allDay ? 
-                            'Todo el día' : 
-                            new Date(event.datetime).toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'});
-                    } catch (e) {
-                        eventTime = 'Hora no disponible';
+                    let eventTime = 'Todo el día';
+                    if (!event.allDay) {
+                        try {
+                            eventTime = new Date(event.datetime).toLocaleTimeString('es-ES', {
+                                hour: '2-digit', 
+                                minute: '2-digit'
+                            });
+                        } catch (e) {
+                            eventTime = 'Hora no disponible';
+                        }
                     }
                     
                     calendarHTML += `
-                        <div class="calendar-event-real" style="border-left-color: ${event.color}">
+                        <div class="calendar-event-real" style="border-left-color: ${event.color || '#8b5cf6'}">
                             <div class="event-time">
                                 <i class="fas fa-clock me-1"></i>${eventTime}
                             </div>
                             <div class="event-title">
-                                ${event.title}
+                                ${event.title || 'Evento sin título'}
                                 <span class="event-badge real">REAL</span>
                             </div>
                             ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
@@ -279,6 +289,12 @@
 
         calendarHTML += `</div></div>`;
         calendarEl.innerHTML = calendarHTML;
+    }
+
+    function isSameDay(date1, date2) {
+        return date1.getDate() === date2.getDate() &&
+            date1.getMonth() === date2.getMonth() &&
+            date1.getFullYear() === date2.getFullYear();
     }
 
     function isSameDay(date1, date2) {
@@ -454,6 +470,14 @@
                 display: flex;
                 align-items: center;
                 gap: 0.5rem;
+            }
+            .past-badge {
+                background: #64748b;
+                color: white;
+                padding: 0.2rem 0.5rem;
+                border-radius: 10px;
+                font-size: 0.7rem;
+                margin-left: 0.5rem;
             }
         `;
         document.head.appendChild(style);
