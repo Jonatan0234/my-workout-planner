@@ -72,7 +72,7 @@
                                     Workout Calendar
                                 </h2>
                                 <p class="text-muted mb-0" id="calendarStatus">
-                                    Loading your REAL calendar events...
+                                    Loading your Google Calendar events...
                                 </p>
                             </div>
                             <div class="col-md-4 text-md-end">
@@ -81,7 +81,7 @@
                                         <i class="fas fa-sync-alt me-2"></i>Refresh
                                     </button>
                                     <a href="{{ calendar_url }}" class="btn btn-outline-light" target="_blank">
-                                        <i class="fab fa-apple me-2"></i>iCal Link
+                                        <i class="fab fa-google me-2"></i>Google Calendar
                                     </a>
                                 </div>
                             </div>
@@ -93,7 +93,7 @@
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Loading calendar...</span>
                                 </div>
-                                <p class="mt-3 text-muted">Loading your REAL calendar events...</p>
+                                <p class="mt-3 text-muted">Loading your Google Calendar events...</p>
                             </div>
                         </div>
 
@@ -103,8 +103,8 @@
                                 <div class="alert alert-info">
                                     <small>
                                         <i class="fas fa-info-circle me-1"></i>
-                                        <strong>Connected to:</strong> {{ calendar_url }}<br>
-                                        <strong>Showing:</strong> Only REAL events from your public calendar
+                                        <strong>Connected to:</strong> Google Calendar<br>
+                                        <strong>Showing:</strong> 3 días anteriores + hoy + 4 días posteriores
                                     </small>
                                 </div>
                             </div>
@@ -118,7 +118,7 @@
     <!-- Bootstrap & Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Cargar calendario REAL al iniciar
+        // Cargar calendario al iniciar
         document.addEventListener('DOMContentLoaded', function() {
             loadRealCalendar();
         });
@@ -132,11 +132,11 @@
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading calendar...</span>
                     </div>
-                    <p class="mt-2 text-muted">Loading your REAL calendar events...</p>
+                    <p class="mt-2 text-muted">Loading your Google Calendar events...</p>
                 </div>
             `;
 
-            statusEl.innerHTML = '<i class="fas fa-sync-alt spin me-2"></i>Loading REAL calendar data...';
+            statusEl.innerHTML = '<i class="fas fa-sync-alt spin me-2"></i>Loading Google Calendar data...';
 
             fetch('/api/real-calendar-events')
                 .then(response => {
@@ -144,221 +144,150 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Datos REALES recibidos:', data);
+                    console.log('Datos Google Calendar recibidos:', data);
                     renderCalendar(data);
                     updateStatus(data);
                 })
                 .catch(error => {
-                    console.error('Error loading REAL calendar:', error);
+                    console.error('Error loading Google Calendar:', error);
                     renderError(error);
                     statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i>Error loading calendar';
                 });
         }
 
         function renderCalendar(data) {
-        const calendarEl = document.getElementById('calendarView');
-        const events = data.events || [];
-        
-        console.log(`📊 Renderizando ${events.length} eventos de hoy + 7 días`);
-        console.log('Eventos filtrados:', events);
+            const calendarEl = document.getElementById('calendarView');
+            const events = data.events || [];
+            
+            console.log(`📊 Renderizando ${events.length} eventos de Google Calendar`);
+            console.log('Eventos filtrados:', events);
 
-        // Información de fechas
-        const today = new Date();
-        const todayString = today.toISOString().split('T')[0];
-        const nextWeek = new Date();
-        nextWeek.setDate(today.getDate() + 7);
-        
-        if (events.length === 0) {
-            calendarEl.innerHTML = `
-                <div class="text-center py-5">
-                    <i class="fas fa-calendar-day display-1 text-muted mb-4"></i>
-                    <h3 class="text-muted">No Hay Eventos Esta Semana</h3>
-                    <p class="text-muted">No se encontraron eventos para hoy y los próximos 7 días.</p>
-                    
-                    <div class="alert alert-warning mt-4">
-                        <h5>🚨 Problema Detectado</h5>
-                        <p class="mb-2">Tu calendario público parece contener solo eventos antiguos.</p>
-                        <ul class="text-start small">
-                            <li>Verifica que el calendario en iCloud esté actualizado</li>
-                            <li>Asegúrate de que el calendario sea público</li>
-                            <li>Los eventos deben estar en el rango: <strong>${todayString} al ${nextWeek.toISOString().split('T')[0]}</strong></li>
-                        </ul>
-                    </div>
-                    
-                    <div class="mt-4">
-                        <button class="btn btn-primary me-2" onclick="loadRealCalendar()">
-                            <i class="fas fa-sync-alt me-2"></i>Reintentar
+            if (events.length === 0) {
+                calendarEl.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-calendar-day display-1 text-muted mb-4"></i>
+                        <h3 class="text-muted">No Events This Week</h3>
+                        <p class="text-muted">No events found for the selected date range (3 days before + today + 4 days after).</p>
+                        <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
+                            <i class="fas fa-redo me-2"></i>Try Again
                         </button>
-                        <a href="${calendar_url}" class="btn btn-outline-light" target="_blank">
-                            <i class="fab fa-apple me-2"></i>Abrir iCal
-                        </a>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-
-        // Ordenar eventos por fecha (más cercanos primero)
-        events.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-        let calendarHTML = `
-            <div class="calendar-container">
-                <div class="calendar-header mb-4">
-                    <h4 class="mb-2">📅 Próximos 7 Días</h4>
-                    <small class="text-muted">
-                        Mostrando ${events.length} eventos del ${todayString} al ${nextWeek.toISOString().split('T')[0]}
-                    </small>
-                </div>
-                <div class="calendar-week-view">
-        `;
-
-        // Crear array de los próximos 7 días
-        const weekDays = [];
-        for (let i = 0; i < 7; i++) {
-            const day = new Date();
-            day.setDate(today.getDate() + i);
-            weekDays.push(day);
-        }
-
-        // Mostrar cada día de la semana
-        weekDays.forEach(day => {
-            const dayString = day.toISOString().split('T')[0];
-            const dayEvents = events.filter(event => event.date === dayString);
-            const isToday = dayString === todayString;
-
-            calendarHTML += `
-                <div class="calendar-day-card ${isToday ? 'today' : ''}">
-                    <div class="day-header">
-                        <div class="day-name">${day.toLocaleDateString('es-ES', { weekday: 'long' })}</div>
-                        <div class="day-date">
-                            ${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'long' })}
-                            ${isToday ? '<span class="today-badge">HOY</span>' : ''}
-                        </div>
-                    </div>
-                    <div class="day-events">
-            `;
-
-            if (dayEvents.length === 0) {
-                calendarHTML += `
-                    <div class="no-events text-center py-3">
-                        <i class="fas fa-calendar-times text-muted mb-2"></i>
-                        <div class="small text-muted">Sin eventos</div>
                     </div>
                 `;
-            } else {
-                // Ordenar eventos por hora
-                dayEvents.sort((a, b) => {
-                    const timeA = a.allDay ? '00:00' : new Date(a.datetime).toTimeString();
-                    const timeB = b.allDay ? '00:00' : new Date(b.datetime).toTimeString();
-                    return timeA.localeCompare(timeB);
-                });
+                return;
+            }
+
+            // Crear array de 8 días (3 antes + hoy + 4 después)
+            const dateRange = [];
+            const today = new Date();
+            
+            // 3 días antes
+            for (let i = 3; i > 0; i--) {
+                const date = new Date();
+                date.setDate(today.getDate() - i);
+                dateRange.push(date);
+            }
+            
+            // Hoy
+            dateRange.push(new Date());
+            
+            // 4 días después
+            for (let i = 1; i <= 4; i++) {
+                const date = new Date();
+                date.setDate(today.getDate() + i);
+                dateRange.push(date);
+            }
+
+            let calendarHTML = `
+                <div class="calendar-week-container">
+                    <div class="calendar-week-header">
+            `;
+
+            // Encabezados de columnas
+            dateRange.forEach(date => {
+                const dateString = date.toISOString().split('T')[0];
+                const isToday = dateString === today.toISOString().split('T')[0];
+                const isPast = date < today && !isToday;
                 
-                dayEvents.forEach(event => {
-                    let eventTime = 'Todo el día';
-                    if (!event.allDay) {
-                        try {
-                            eventTime = new Date(event.datetime).toLocaleTimeString('es-ES', {
-                                hour: '2-digit', 
-                                minute: '2-digit'
-                            });
-                        } catch (e) {
-                            eventTime = 'Hora no disponible';
-                        }
-                    }
-                    
+                calendarHTML += `
+                    <div class="calendar-day-header ${isToday ? 'today' : ''} ${isPast ? 'past' : ''}">
+                        <div class="day-name">${date.toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+                        <div class="day-date">
+                            ${date.getDate()}
+                            ${isToday ? '<span class="today-badge">Hoy</span>' : ''}
+                        </div>
+                        <div class="month-name">${date.toLocaleDateString('es-ES', { month: 'short' })}</div>
+                    </div>
+                `;
+            });
+
+            calendarHTML += `
+                    </div>
+                    <div class="calendar-week-grid">
+            `;
+
+            // Contenido de cada columna
+            dateRange.forEach(date => {
+                const dateString = date.toISOString().split('T')[0];
+                const dayEvents = events.filter(event => event.date === dateString);
+                const isToday = dateString === today.toISOString().split('T')[0];
+                const isPast = date < today && !isToday;
+
+                calendarHTML += `
+                    <div class="calendar-day-column ${isToday ? 'today' : ''} ${isPast ? 'past' : ''}">
+                        <div class="day-events">
+                `;
+
+                if (dayEvents.length === 0) {
                     calendarHTML += `
-                        <div class="calendar-event-real" style="border-left-color: ${event.color || '#8b5cf6'}">
-                            <div class="event-time">
-                                <i class="fas fa-clock me-1"></i>${eventTime}
-                            </div>
-                            <div class="event-title">
-                                ${event.title || 'Evento sin título'}
-                                <span class="event-badge real">ACTUAL</span>
-                            </div>
-                            ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
-                            ${event.location ? `<div class="event-location"><i class="fas fa-map-marker-alt me-1"></i>${event.location}</div>` : ''}
+                        <div class="no-events">
+                            <i class="fas fa-calendar-times"></i>
+                            <span>Sin eventos</span>
                         </div>
                     `;
-                });
-            }
+                } else {
+                    // Ordenar eventos por hora
+                    dayEvents.sort((a, b) => {
+                        const timeA = a.allDay ? '00:00' : new Date(a.datetime).toTimeString();
+                        const timeB = b.allDay ? '00:00' : new Date(b.datetime).toTimeString();
+                        return timeA.localeCompare(timeB);
+                    });
+                    
+                    dayEvents.forEach(event => {
+                        let eventTime = 'Todo el día';
+                        if (!event.allDay) {
+                            try {
+                                eventTime = new Date(event.datetime).toLocaleTimeString('es-ES', {
+                                    hour: '2-digit', 
+                                    minute: '2-digit'
+                                });
+                            } catch (e) {
+                                eventTime = 'Hora no disponible';
+                            }
+                        }
+                        
+                        calendarHTML += `
+                            <div class="calendar-event" style="border-left-color: ${event.color || '#8b5cf6'}">
+                                <div class="event-time">${eventTime}</div>
+                                <div class="event-title">${event.title || 'Evento sin título'}</div>
+                                ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
+                                ${event.location ? `<div class="event-location"><i class="fas fa-map-marker-alt"></i>${event.location}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+
+                calendarHTML += `
+                        </div>
+                    </div>
+                `;
+            });
 
             calendarHTML += `
                     </div>
                 </div>
             `;
-        });
 
-        calendarHTML += `
-                </div>
-                <div class="calendar-footer mt-4">
-                    <div class="alert alert-success">
-                        <small>
-                            <i class="fas fa-check-circle me-2"></i>
-                            <strong>Calendario actualizado:</strong> Mostrando solo eventos de hoy y los próximos 7 días.
-                            Última actualización: ${new Date().toLocaleString()}
-                        </small>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        calendarEl.innerHTML = calendarHTML;
-    }
-
-function isSameDay(date1, date2) {
-    return date1.getDate() === date2.getDate() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getFullYear() === date2.getFullYear();
-}
-
-// Función auxiliar para comparar fechas
-function isSameDay(date1, date2) {
-    return date1.getDate() === date2.getDate() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getFullYear() === date2.getFullYear();
-} 
-
-function isSameDay(date1, date2) {
-        return date1.getDate() === date2.getDate() &&
-            date1.getMonth() === date2.getMonth() &&
-            date1.getFullYear() === date2.getFullYear();
-    }
-
-    function isSameDay(date1, date2) {
-        return date1.getDate() === date2.getDate() &&
-            date1.getMonth() === date2.getMonth() &&
-            date1.getFullYear() === date2.getFullYear();
-    }
-
-    function isSameDay(date1, date2) {
-        return date1.getDate() === date2.getDate() &&
-            date1.getMonth() === date2.getMonth() &&
-            date1.getFullYear() === date2.getFullYear();
-    }
-
-        // Funciones de navegación semanal
-        let currentWeekOffset = 0;
-
-        function changeWeek(weeks) {
-            currentWeekOffset += weeks;
-            loadRealCalendar();
-        }
-
-        function goToCurrentWeek() {
-            currentWeekOffset = 0;
-            loadRealCalendar();
-        }
-
-    function isSameDay(date1, date2) {
-        return date1.getDate() === date2.getDate() &&
-            date1.getMonth() === date2.getMonth() &&
-            date1.getFullYear() === date2.getFullYear();
-    }
-
-        function isSameDay(date1, date2) {
-            return date1.getDate() === date2.getDate() &&
-                   date1.getMonth() === date2.getMonth() &&
-                   date1.getFullYear() === date2.getFullYear();
+            calendarEl.innerHTML = calendarHTML;
         }
 
         function updateStatus(data) {
@@ -367,7 +296,7 @@ function isSameDay(date1, date2) {
             if (data.success) {
                 statusEl.innerHTML = `
                     <span class="badge bg-success me-2">
-                        <i class="fas fa-check-circle me-1"></i>REAL CALENDAR
+                        <i class="fas fa-check-circle me-1"></i>GOOGLE CALENDAR
                     </span>
                     ${data.message}
                 `;
@@ -408,109 +337,228 @@ function isSameDay(date1, date2) {
                 from { transform: rotate(0deg); }
                 to { transform: rotate(360deg); }
             }
-            .event-badge {
-                font-size: 0.7rem;
-                padding: 0.2rem 0.5rem;
-                border-radius: 10px;
-                margin-left: 0.5rem;
-            }
-            .event-badge.real {
-                background: #10b981;
-                color: white;
-            }
-            .calendar-container {
-                background: rgba(255, 255, 255, 0.05);
+            
+            /* Estilos para vista de semana en columnas */
+            .calendar-week-container {
+                background: rgba(255, 255, 255, 0.03);
                 border-radius: var(--border-radius-lg);
-                padding: 1.5rem;
+                overflow: hidden;
             }
-            .calendar-days {
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-            }
-            .calendar-day-card {
-                background: rgba(255, 255, 255, 0.08);
-                border-radius: var(--border-radius);
-                padding: 1.5rem;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            .calendar-day-card.today {
-                background: rgba(99, 102, 241, 0.15);
-                border-color: rgba(99, 102, 241, 0.3);
-            }
-            .day-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 1rem;
-                padding-bottom: 0.75rem;
+            
+            .calendar-week-header {
+                display: grid;
+                grid-template-columns: repeat(8, 1fr);
+                background: rgba(255, 255, 255, 0.1);
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
-            .day-name {
+            
+            .calendar-day-header {
+                padding: 1rem;
+                text-align: center;
                 font-weight: 600;
-                font-size: 1.1rem;
+                color: var(--light);
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                position: relative;
             }
+            
+            .calendar-day-header.today {
+                background: rgba(99, 102, 241, 0.2);
+            }
+            
+            .calendar-day-header.past {
+                opacity: 0.7;
+            }
+            
+            .calendar-day-header:last-child {
+                border-right: none;
+            }
+            
+            .day-name {
+                font-size: 0.9rem;
+                margin-bottom: 0.25rem;
+                text-transform: uppercase;
+            }
+            
             .day-date {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: var(--primary);
+                margin-bottom: 0.25rem;
+            }
+            
+            .month-name {
+                font-size: 0.8rem;
                 color: #cbd5e1;
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
+                text-transform: uppercase;
             }
+            
             .today-badge {
-                background: var(--primary);
-                color: white;
-                padding: 0.25rem 0.5rem;
-                border-radius: 12px;
-                font-size: 0.75rem;
+                position: absolute;
+                top: 0.5rem;
+                right: 0.5rem;
+                background: var(--warning);
+                color: #000;
+                padding: 0.2rem 0.5rem;
+                border-radius: 10px;
+                font-size: 0.7rem;
+                font-weight: 600;
             }
+            
+            .calendar-week-grid {
+                display: grid;
+                grid-template-columns: repeat(8, 1fr);
+                min-height: 400px;
+            }
+            
+            .calendar-day-column {
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                padding: 1rem;
+                min-height: 400px;
+                background: rgba(255, 255, 255, 0.02);
+            }
+            
+            .calendar-day-column.today {
+                background: rgba(99, 102, 241, 0.1);
+            }
+            
+            .calendar-day-column.past {
+                opacity: 0.6;
+            }
+            
+            .calendar-day-column:nth-child(even) {
+                background: rgba(255, 255, 255, 0.03);
+            }
+            
+            .calendar-day-column:last-child {
+                border-right: none;
+            }
+            
             .day-events {
                 display: flex;
                 flex-direction: column;
                 gap: 0.75rem;
+                height: 100%;
             }
-            .calendar-event-real {
+            
+            .no-events {
+                text-align: center;
+                color: #64748b;
+                font-style: italic;
+                font-size: 0.875rem;
+                padding: 2rem 1rem;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+            }
+            
+            .no-events i {
+                font-size: 1.5rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .calendar-event {
                 background: rgba(255, 255, 255, 0.08);
                 border-left: 4px solid;
                 border-radius: 8px;
-                padding: 1rem;
+                padding: 0.75rem;
+                font-size: 0.8rem;
                 transition: all 0.3s ease;
+                position: relative;
             }
-            .calendar-event-real:hover {
+            
+            .calendar-event:hover {
                 background: rgba(255, 255, 255, 0.12);
-                transform: translateX(5px);
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
             }
+            
             .event-time {
-                font-size: 0.75rem;
+                font-size: 0.7rem;
                 color: #cbd5e1;
-                margin-bottom: 0.5rem;
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
+                margin-bottom: 0.25rem;
+                font-weight: 600;
             }
+            
             .event-title {
                 font-weight: 600;
-                margin-bottom: 0.5rem;
+                color: var(--light);
+                line-height: 1.3;
+                margin-bottom: 0.25rem;
+                font-size: 0.85rem;
             }
+            
             .event-description {
-                font-size: 0.8rem;
+                font-size: 0.7rem;
                 color: #94a3b8;
-                margin-top: 0.5rem;
+                line-height: 1.3;
+                margin-top: 0.25rem;
             }
+            
             .event-location {
-                font-size: 0.75rem;
+                font-size: 0.65rem;
                 color: #64748b;
-                margin-top: 0.5rem;
+                margin-top: 0.25rem;
                 display: flex;
                 align-items: center;
-                gap: 0.5rem;
+                gap: 0.25rem;
             }
-            .past-badge {
-                background: #64748b;
-                color: white;
-                padding: 0.2rem 0.5rem;
-                border-radius: 10px;
-                font-size: 0.7rem;
-                margin-left: 0.5rem;
+            
+            /* Responsive */
+            @media (max-width: 1200px) {
+                .calendar-week-header,
+                .calendar-week-grid {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+            }
+            
+            @media (max-width: 768px) {
+                .calendar-week-header,
+                .calendar-week-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .calendar-week-header,
+                .calendar-week-grid {
+                    grid-template-columns: 1fr;
+                }
+                
+                .calendar-day-header {
+                    display: none;
+                }
+                
+                .calendar-day-column {
+                    border-right: none;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    min-height: auto;
+                    padding: 1rem 0.5rem;
+                }
+                
+                .calendar-day-column:last-child {
+                    border-bottom: none;
+                }
+                
+                .mobile-day-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                    padding-bottom: 0.5rem;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                }
+                
+                .mobile-day-name {
+                    font-weight: 600;
+                    color: var(--primary);
+                }
+                
+                .mobile-day-date {
+                    color: #cbd5e1;
+                    font-size: 0.9rem;
+                }
             }
         `;
         document.head.appendChild(style);

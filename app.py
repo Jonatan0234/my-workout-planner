@@ -272,16 +272,16 @@ exercises = {
 }
 
 # ==============================
-# 🗓️ CALENDAR CONFIG - URL PÚBLICA
+# 🗓️ GOOGLE CALENDAR CONFIG
 # ==============================
-APPLE_CALENDAR_URL = "webcal://p162-caldav.icloud.com/published/2/NDM1NjgzNzQwNDM1NjgzN9K8AFwQL0suOvwYnQC10mKli_j_u4hAzrX6GT07Fb15_-VeOkUxk1uiakayFx7wCv6PONa07SfUVQLFlrJ4EHo"
+GOOGLE_CALENDAR_URL = "https://calendar.google.com/calendar/ical/n9kbghpits33lfhkfels27i1afosnkic%40import.calendar.google.com/public/basic.ics"
 
 # ==============================
 # 🖥️ ROUTES
 # ==============================
 @app.route('/')
 def home():
-    return render_template('home.html', calendar_url=APPLE_CALENDAR_URL)
+    return render_template('home.html', calendar_url=GOOGLE_CALENDAR_URL)
 
 @app.route('/workout')
 def workout():
@@ -306,38 +306,38 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """SOLO eventos REALES del calendario público - CON ACTUALIZACIÓN FORZADA"""
+    """Eventos REALES de Google Calendar - 3 días antes + hoy + 4 días después"""
     try:
-        # Forzar actualización añadiendo timestamp único
-        timestamp = int(time.time())
-        forced_calendar_url = f"{APPLE_CALENDAR_URL}?{timestamp}"
+        events = get_google_calendar_events()
         
-        events = get_real_calendar_events(forced_calendar_url)
-        
-        # Filtrar SOLO eventos de hoy y próximos 7 días
+        # Filtrar eventos del rango: 3 días antes hasta 4 días después
         today = datetime.now().date()
-        next_week = today + timedelta(days=7)
+        start_date = today - timedelta(days=3)
+        end_date = today + timedelta(days=4)
         
         filtered_events = []
         for event in events:
             try:
                 event_date = datetime.fromisoformat(event['datetime'].replace('Z', '+00:00')).date()
-                if today <= event_date <= next_week:
+                if start_date <= event_date <= end_date:
                     filtered_events.append(event)
             except Exception as e:
                 print(f"⚠️ Error filtrando evento: {e}")
                 continue
         
-        print(f"🎯 Eventos de hoy + 7 días: {len(filtered_events)}")
+        print(f"🎯 Eventos del rango {start_date} a {end_date}: {len(filtered_events)}")
         
         return jsonify({
             'success': True,
             'events': filtered_events,
             'count': len(filtered_events),
-            'message': f'✅ Mostrando {len(filtered_events)} eventos de hoy y próximos 7 días',
-            'source': 'public_calendar',
-            'today': today.isoformat(),
-            'next_week': next_week.isoformat()
+            'message': f'✅ Mostrando {len(filtered_events)} eventos (3 días antes + hoy + 4 días después)',
+            'source': 'google_calendar',
+            'date_range': {
+                'start': start_date.isoformat(),
+                'end': end_date.isoformat(),
+                'today': today.isoformat()
+            }
         })
             
     except Exception as e:
@@ -350,39 +350,29 @@ def real_calendar_events():
             'source': 'error'
         })
 
-def get_real_calendar_events(calendar_url=None):
-    """Obtener eventos REALES forzando actualización"""
+def get_google_calendar_events():
+    """Obtener eventos de Google Calendar"""
     try:
-        # Usar URL forzada o la normal
-        url = calendar_url or APPLE_CALENDAR_URL
+        print(f"🔗 Conectando a Google Calendar...")
         
-        # Convertir webcal:// a https://
-        ical_url = url.replace('webcal://', 'https://')
-        print(f"🔗 Conectando a: {ical_url}")
-        
-        # Descargar el archivo iCal con headers para evitar cache
-        headers = {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        }
-        response = requests.get(ical_url, timeout=10, headers=headers)
+        # Descargar el archivo iCal
+        response = requests.get(GOOGLE_CALENDAR_URL, timeout=10)
         response.raise_for_status()
         
-        print(f"📥 Calendario descargado: {len(response.text)} caracteres")
+        print(f"📥 Calendario Google descargado: {len(response.text)} caracteres")
         
-        # Parsear con biblioteca iCalendar profesional
+        # Parsear con biblioteca iCalendar
         events = parse_with_icalendar_lib(response.text)
-        print(f"📅 Eventos parseados: {len(events)}")
+        print(f"📅 Eventos Google parseados: {len(events)}")
         
         return events
         
     except Exception as e:
-        print(f"❌ Error cargando calendario: {str(e)}")
+        print(f"❌ Error cargando Google Calendar: {str(e)}")
         return []
 
 def parse_with_icalendar_lib(ical_content):
-    """Parsear usando biblioteca iCalendar profesional"""
+    """Parsear usando biblioteca iCalendar"""
     events = []
     
     try:
@@ -407,7 +397,7 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT - VERSIÓN OPTIMIZADA"""
+    """Parsear componente VEVENT"""
     try:
         # Obtener campos básicos
         summary = component.get('SUMMARY')
@@ -416,15 +406,12 @@ def parse_icalendar_component(component):
         if not summary or not dtstart:
             return None
         
-        # Extraer datetime de forma segura
+        # Extraer datetime
         start_dt = dtstart.dt
         
-        # DEBUG reducido para eventos recientes
-        event_title = str(summary)
-        
-        # Crear evento básico
+        # Crear evento
         event = {
-            'title': event_title,
+            'title': str(summary),
             'isReal': True
         }
         
@@ -435,12 +422,6 @@ def parse_icalendar_component(component):
         else:
             event_start = datetime.combine(start_dt, datetime.min.time())
             event['allDay'] = True
-        
-        # Solo mostrar debug para eventos recientes
-        event_date = event_start.date()
-        today = datetime.now().date()
-        if event_date >= today:
-            print(f"🔍 Evento RECIENTE: {event_title} - {event_date}")
         
         event['datetime'] = event_start.isoformat()
         event['date'] = event_start.strftime("%Y-%m-%d")
@@ -458,7 +439,7 @@ def parse_icalendar_component(component):
         event['location'] = str(location) if location else ''
         
         # Color basado en título
-        event['color'] = get_event_color(event_title)
+        event['color'] = get_event_color(str(summary))
         
         return event
         
