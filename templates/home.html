@@ -180,15 +180,23 @@
             return;
         }
 
-        // **VISTA MEJORADA: Mostrar eventos de los próximos 30 días**
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // **CORRECCIÓN: Filtrar eventos usando timestamp en lugar de fecha local**
+        const now = new Date();
+        const currentTimestamp = Math.floor(now.getTime() / 1000); // Timestamp actual en segundos
         
-        // Filtrar solo eventos futuros (desde hoy en adelante)
+        // Filtrar solo eventos futuros (incluyendo hoy)
         const futureEvents = events.filter(event => {
             try {
-                const eventDate = new Date(event.date + 'T00:00:00');
-                return eventDate >= today;
+                // Usar el timestamp del evento si está disponible, si no usar la fecha
+                if (event.timestamp) {
+                    return event.timestamp >= currentTimestamp;
+                } else {
+                    // Fallback: usar fecha (considerar eventos de hoy en adelante)
+                    const eventDate = new Date(event.date + 'T00:00:00');
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return eventDate >= today;
+                }
             } catch (e) {
                 console.log('Error filtrando evento:', e);
                 return false;
@@ -196,6 +204,7 @@
         });
 
         console.log(`🎯 Eventos futuros: ${futureEvents.length}`);
+        console.log('Eventos futuros detallados:', futureEvents);
 
         if (futureEvents.length === 0) {
             calendarEl.innerHTML = `
@@ -207,6 +216,10 @@
                         <i class="fas fa-info-circle me-2"></i>
                         All events are in the past. Add new events to your iPhone Calendar.
                     </div>
+                    <div class="mt-3">
+                        <p class="text-muted small">Current date: ${new Date().toLocaleDateString()}</p>
+                        <p class="text-muted small">Total events found: ${events.length}</p>
+                    </div>
                     <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
                         <i class="fas fa-redo me-2"></i>Refresh
                     </button>
@@ -215,7 +228,7 @@
             return;
         }
 
-        // Agrupar eventos por fecha de forma SEGURA
+        // Agrupar eventos por fecha
         const eventsByDate = {};
         futureEvents.forEach(event => {
             try {
@@ -241,7 +254,7 @@
             <div class="calendar-container">
                 <div class="calendar-header mb-4">
                     <h4 class="mb-2">📅 Próximos Entrenamientos</h4>
-                    <small class="text-muted">Mostrando ${displayDates.length} días con eventos futuros</small>
+                    <small class="text-muted">Mostrando ${displayDates.length} días con eventos futuros (Hoy: ${new Date().toLocaleDateString()})</small>
                 </div>
                 <div class="calendar-days">
         `;
@@ -250,6 +263,8 @@
         displayDates.forEach(dateKey => {
             const dayEvents = eventsByDate[dateKey] || [];
             const eventDate = new Date(dateKey + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             const isToday = isSameDay(eventDate, today);
 
             calendarHTML += `
@@ -312,16 +327,15 @@
                 });
             }
 
-            calendarHTML += `
-                    </div>
+        calendarHTML += `
                 </div>
-            `;
-        });
+            </div>
+        `;
+    });
 
-        calendarHTML += `</div></div>`;
-        calendarEl.innerHTML = calendarHTML;
-    }
-
+    calendarHTML += `</div></div>`;
+    calendarEl.innerHTML = calendarHTML;
+}
     function isSameDay(date1, date2) {
         return date1.getDate() === date2.getDate() &&
             date1.getMonth() === date2.getMonth() &&
