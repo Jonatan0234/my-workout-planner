@@ -160,6 +160,7 @@
         const events = data.events || [];
         
         console.log(`📊 Renderizando ${events.length} eventos REALES`);
+        console.log('Todos los eventos:', events);
 
         if (events.length === 0) {
             calendarEl.innerHTML = `
@@ -179,55 +180,85 @@
             return;
         }
 
-        // **VISTA SIMPLE Y FUNCIONAL - ÚLTIMOS 7 DÍAS Y PRÓXIMOS 7 DÍAS**
+        // **VISTA MEJORADA: Mostrar eventos de los próximos 30 días**
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        // Crear array de 15 días (7 antes + hoy + 7 después)
-        const days = [];
-        for (let i = -7; i <= 7; i++) {
-            const day = new Date(today);
-            day.setDate(today.getDate() + i);
-            days.push(day);
+        // Filtrar solo eventos futuros (desde hoy en adelante)
+        const futureEvents = events.filter(event => {
+            try {
+                const eventDate = new Date(event.date + 'T00:00:00');
+                return eventDate >= today;
+            } catch (e) {
+                console.log('Error filtrando evento:', e);
+                return false;
+            }
+        });
+
+        console.log(`🎯 Eventos futuros: ${futureEvents.length}`);
+
+        if (futureEvents.length === 0) {
+            calendarEl.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-calendar-plus display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted">No Future Events</h3>
+                    <p class="text-muted">No future events found in your calendar.</p>
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        All events are in the past. Add new events to your iPhone Calendar.
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
+                        <i class="fas fa-redo me-2"></i>Refresh
+                    </button>
+                </div>
+            `;
+            return;
         }
 
         // Agrupar eventos por fecha de forma SEGURA
         const eventsByDate = {};
-        events.forEach(event => {
+        futureEvents.forEach(event => {
             try {
-                const dateKey = event.date; // Esto ya viene formateado del backend
+                const dateKey = event.date;
                 if (!eventsByDate[dateKey]) {
                     eventsByDate[dateKey] = [];
                 }
                 eventsByDate[dateKey].push(event);
             } catch (e) {
-                console.log('Error procesando evento:', e);
+                console.log('Error agrupando evento:', e);
             }
         });
+
+        // Obtener todas las fechas únicas y ordenarlas
+        const uniqueDates = Object.keys(eventsByDate).sort();
+        
+        // Tomar solo las próximas 8 fechas (o menos)
+        const displayDates = uniqueDates.slice(0, 8);
+
+        console.log('Fechas a mostrar:', displayDates);
 
         let calendarHTML = `
             <div class="calendar-container">
                 <div class="calendar-header mb-4">
-                    <h4 class="mb-2">Calendario de Entrenamientos</h4>
-                    <small class="text-muted">Mostrando 7 días antes y 7 días después de hoy</small>
+                    <h4 class="mb-2">📅 Próximos Entrenamientos</h4>
+                    <small class="text-muted">Mostrando ${displayDates.length} días con eventos futuros</small>
                 </div>
                 <div class="calendar-days">
         `;
 
-        // Mostrar cada día
-        days.forEach(day => {
-            const dateKey = day.toISOString().split('T')[0];
+        // Mostrar cada día con eventos
+        displayDates.forEach(dateKey => {
             const dayEvents = eventsByDate[dateKey] || [];
-            const isToday = isSameDay(day, today);
+            const eventDate = new Date(dateKey + 'T00:00:00');
+            const isToday = isSameDay(eventDate, today);
 
             calendarHTML += `
                 <div class="calendar-day-card ${isToday ? 'today' : ''}">
                     <div class="day-header">
-                        <div class="day-name">${day.toLocaleDateString('es-ES', { weekday: 'long' })}</div>
+                        <div class="day-name">${eventDate.toLocaleDateString('es-ES', { weekday: 'long' })}</div>
                         <div class="day-date">
-                            ${day.getDate()} ${day.toLocaleDateString('es-ES', { month: 'short' })}
+                            ${eventDate.getDate()} ${eventDate.toLocaleDateString('es-ES', { month: 'long' })}
                             ${isToday ? '<span class="today-badge">Hoy</span>' : ''}
-                            ${day < today ? '<span class="past-badge">Pasado</span>' : ''}
                         </div>
                     </div>
                     <div class="day-events">
@@ -241,7 +272,7 @@
                     </div>
                 `;
             } else {
-                // Ordenar eventos de forma SEGURA
+                // Ordenar eventos por hora
                 dayEvents.sort((a, b) => {
                     try {
                         const timeA = a.allDay ? '00:00' : new Date(a.datetime).toTimeString();
@@ -289,6 +320,12 @@
 
         calendarHTML += `</div></div>`;
         calendarEl.innerHTML = calendarHTML;
+    }
+
+    function isSameDay(date1, date2) {
+        return date1.getDate() === date2.getDate() &&
+            date1.getMonth() === date2.getMonth() &&
+            date1.getFullYear() === date2.getFullYear();
     }
 
     function isSameDay(date1, date2) {

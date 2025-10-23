@@ -377,7 +377,7 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT usando biblioteca iCalendar - CORREGIDO DEFINITIVAMENTE"""
+    """Parsear componente VEVENT usando biblioteca iCalendar - SOLUCIÓN DEFINITIVA"""
     try:
         # Obtener campos básicos
         summary = component.get('SUMMARY')
@@ -388,6 +388,11 @@ def parse_icalendar_component(component):
         
         # Extraer datetime de forma segura
         start_dt = dtstart.dt
+        
+        # DEBUG: Mostrar información del evento
+        print(f"🔍 Procesando evento: {summary}")
+        print(f"   - Tipo de start_dt: {type(start_dt)}")
+        print(f"   - Valor de start_dt: {start_dt}")
         
         # Crear evento básico
         event = {
@@ -403,10 +408,12 @@ def parse_icalendar_component(component):
             else:
                 event_start = start_dt
             event['allDay'] = False
+            print(f"   - Evento con hora: {event_start}")
         else:
             # Es todo el día (solo fecha)
             event_start = datetime.combine(start_dt, datetime.min.time())
             event['allDay'] = True
+            print(f"   - Evento todo el día: {event_start}")
         
         # NO FILTRAR POR FECHA - dejar que el frontend decida
         event['datetime'] = event_start.isoformat()
@@ -414,6 +421,9 @@ def parse_icalendar_component(component):
         event['day_name'] = event_start.strftime("%A")
         event['day_number'] = event_start.day
         event['month_name'] = event_start.strftime("%B")
+        event['year'] = event_start.year
+        event['month'] = event_start.month
+        event['day'] = event_start.day
         
         # Campos opcionales
         description = component.get('DESCRIPTION')
@@ -424,10 +434,14 @@ def parse_icalendar_component(component):
         # Color basado en título
         event['color'] = get_event_color(event['title'])
         
+        print(f"   - Evento final: {event['title']} - {event['date']}")
+        
         return event
         
     except Exception as e:
         print(f"❌ Error parseando componente: {str(e)}")
+        import traceback
+        print(f"   - Traceback: {traceback.format_exc()}")
         return None
 
 def get_event_color(event_title):
