@@ -305,7 +305,7 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """SOLO eventos REALES del calendario público - CON BIBLIOTECA iCalendar"""
+    """SOLO eventos REALES del calendario público - SIN FILTRADO"""
     try:
         events = get_real_calendar_events()
         
@@ -377,7 +377,7 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT usando biblioteca iCalendar - SOLUCIÓN CORREGIDA"""
+    """Parsear componente VEVENT - VERSIÓN SIMPLIFICADA"""
     try:
         # Obtener campos básicos
         summary = component.get('SUMMARY')
@@ -389,9 +389,7 @@ def parse_icalendar_component(component):
         # Extraer datetime de forma segura
         start_dt = dtstart.dt
         
-        # DEBUG: Mostrar información del evento
         print(f"🔍 Procesando evento: {summary}")
-        print(f"   - Tipo de start_dt: {type(start_dt)}")
         print(f"   - Valor de start_dt: {start_dt}")
         
         # Crear evento básico
@@ -400,29 +398,23 @@ def parse_icalendar_component(component):
             'isReal': True
         }
         
-        # **CORRECCIÓN: Manejar fecha/hora PRESERVANDO la zona horaria original**
+        # **ENFOQUE SIMPLIFICADO: Usar la fecha tal cual**
         if isinstance(start_dt, datetime):
-            # Tiene hora específica - PRESERVAR ZONA HORARIA ORIGINAL
-            if start_dt.tzinfo:
-                # Mantener la zona horaria original, no convertir a UTC
-                event_start = start_dt
-            else:
-                # Si no tiene zona horaria, asumir UTC
-                event_start = start_dt.replace(tzinfo=timezone.utc)
+            # Evento con hora específica
+            event_start = start_dt
             event['allDay'] = False
-            print(f"   - Evento con hora: {event_start} (Zona horaria: {event_start.tzinfo})")
+            print(f"   - Evento con hora: {event_start}")
         else:
-            # Es todo el día (solo fecha) - usar fecha tal cual
-            event_start = datetime.combine(start_dt, datetime.min.time(), tzinfo=timezone.utc)
+            # Evento todo el día
+            event_start = datetime.combine(start_dt, datetime.min.time())
             event['allDay'] = True
             print(f"   - Evento todo el día: {event_start}")
         
-        # **CORRECCIÓN: Usar timestamp con zona horaria para comparaciones**
+        # **NO FILTRAR - dejar que el frontend decida**
         event['datetime'] = event_start.isoformat()
-        event['timestamp'] = event_start.timestamp()  # Para comparaciones fáciles
         event['date'] = event_start.strftime("%Y-%m-%d")
         event['day_name'] = event_start.strftime("%A")
-        event['day_number'] = start_dt.day if isinstance(start_dt, datetime) else start_dt.day
+        event['day_number'] = event_start.day
         event['month_name'] = event_start.strftime("%B")
         event['year'] = event_start.year
         event['month'] = event_start.month
@@ -437,7 +429,7 @@ def parse_icalendar_component(component):
         # Color basado en título
         event['color'] = get_event_color(event['title'])
         
-        print(f"   - Evento final: {event['title']} - {event['date']} - {event_start.tzinfo}")
+        print(f"   - Evento final: {event['title']} - {event['date']}")
         
         return event
         

@@ -168,10 +168,6 @@
                     <i class="fas fa-calendar-plus display-1 text-muted mb-4"></i>
                     <h3 class="text-muted">No Events Found</h3>
                     <p class="text-muted">No events found in your public calendar.</p>
-                    <div class="alert alert-warning mt-3">
-                        <i class="fas fa-lightbulb me-2"></i>
-                        Add events to your iPhone Calendar to see them here
-                    </div>
                     <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
                         <i class="fas fa-redo me-2"></i>Try Again
                     </button>
@@ -180,163 +176,124 @@
             return;
         }
 
-        // **CORRECCIÓN: Filtrar eventos usando timestamp en lugar de fecha local**
-        const now = new Date();
-        const currentTimestamp = Math.floor(now.getTime() / 1000); // Timestamp actual en segundos
+        // **ENFOQUE RADICAL: Mostrar TODOS los eventos y dejar que el usuario vea lo que hay**
+        const today = new Date();
+        const todayString = today.toISOString().split('T')[0];
         
-        // Filtrar solo eventos futuros (incluyendo hoy)
-        const futureEvents = events.filter(event => {
-            try {
-                // Usar el timestamp del evento si está disponible, si no usar la fecha
-                if (event.timestamp) {
-                    return event.timestamp >= currentTimestamp;
-                } else {
-                    // Fallback: usar fecha (considerar eventos de hoy en adelante)
-                    const eventDate = new Date(event.date + 'T00:00:00');
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    return eventDate >= today;
-                }
-            } catch (e) {
-                console.log('Error filtrando evento:', e);
-                return false;
-            }
-        });
+        console.log(`🗓️ Hoy es: ${todayString}`);
 
-        console.log(`🎯 Eventos futuros: ${futureEvents.length}`);
-        console.log('Eventos futuros detallados:', futureEvents);
-
-        if (futureEvents.length === 0) {
-            calendarEl.innerHTML = `
-                <div class="text-center py-5">
-                    <i class="fas fa-calendar-plus display-1 text-muted mb-4"></i>
-                    <h3 class="text-muted">No Future Events</h3>
-                    <p class="text-muted">No future events found in your calendar.</p>
-                    <div class="alert alert-info mt-3">
-                        <i class="fas fa-info-circle me-2"></i>
-                        All events are in the past. Add new events to your iPhone Calendar.
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-muted small">Current date: ${new Date().toLocaleDateString()}</p>
-                        <p class="text-muted small">Total events found: ${events.length}</p>
-                    </div>
-                    <button class="btn btn-primary mt-3" onclick="loadRealCalendar()">
-                        <i class="fas fa-redo me-2"></i>Refresh
-                    </button>
-                </div>
-            `;
-            return;
-        }
-
-        // Agrupar eventos por fecha
-        const eventsByDate = {};
-        futureEvents.forEach(event => {
-            try {
-                const dateKey = event.date;
-                if (!eventsByDate[dateKey]) {
-                    eventsByDate[dateKey] = [];
-                }
-                eventsByDate[dateKey].push(event);
-            } catch (e) {
-                console.log('Error agrupando evento:', e);
-            }
-        });
-
-        // Obtener todas las fechas únicas y ordenarlas
-        const uniqueDates = Object.keys(eventsByDate).sort();
-        
-        // Tomar solo las próximas 8 fechas (o menos)
-        const displayDates = uniqueDates.slice(0, 8);
-
-        console.log('Fechas a mostrar:', displayDates);
+        // Ordenar eventos por fecha (más recientes primero)
+        events.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         let calendarHTML = `
             <div class="calendar-container">
                 <div class="calendar-header mb-4">
-                    <h4 class="mb-2">📅 Próximos Entrenamientos</h4>
-                    <small class="text-muted">Mostrando ${displayDates.length} días con eventos futuros (Hoy: ${new Date().toLocaleDateString()})</small>
+                    <h4 class="mb-2">📅 Todos los Eventos del Calendario</h4>
+                    <small class="text-muted">
+                        Mostrando ${events.length} eventos - Hoy: ${today.toLocaleDateString()}
+                        <br>
+                        <strong>¿Problema con las fechas?</strong> Los eventos deberían mostrarse correctamente si están en tu calendario de iCloud.
+                    </small>
                 </div>
-                <div class="calendar-days">
+                <div class="calendar-events-list">
         `;
 
-        // Mostrar cada día con eventos
-        displayDates.forEach(dateKey => {
-            const dayEvents = eventsByDate[dateKey] || [];
-            const eventDate = new Date(dateKey + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const isToday = isSameDay(eventDate, today);
+        // Mostrar todos los eventos agrupados por mes
+        const eventsByMonth = {};
+        events.forEach(event => {
+            const monthKey = `${event.year}-${event.month}`;
+            if (!eventsByMonth[monthKey]) {
+                eventsByMonth[monthKey] = [];
+            }
+            eventsByMonth[monthKey].push(event);
+        });
 
+        // Mostrar meses en orden (más recientes primero)
+        const sortedMonths = Object.keys(eventsByMonth).sort().reverse();
+
+        sortedMonths.forEach(monthKey => {
+            const monthEvents = eventsByMonth[monthKey];
+            const firstEvent = monthEvents[0];
+            const monthName = firstEvent.month_name;
+            const year = firstEvent.year;
+            
             calendarHTML += `
-                <div class="calendar-day-card ${isToday ? 'today' : ''}">
-                    <div class="day-header">
-                        <div class="day-name">${eventDate.toLocaleDateString('es-ES', { weekday: 'long' })}</div>
-                        <div class="day-date">
-                            ${eventDate.getDate()} ${eventDate.toLocaleDateString('es-ES', { month: 'long' })}
-                            ${isToday ? '<span class="today-badge">Hoy</span>' : ''}
-                        </div>
-                    </div>
-                    <div class="day-events">
+                <div class="month-section mb-4">
+                    <h5 class="month-header text-primary mb-3">
+                        <i class="fas fa-calendar me-2"></i>${monthName} ${year}
+                    </h5>
+                    <div class="month-events">
             `;
 
-            if (dayEvents.length === 0) {
-                calendarHTML += `
-                    <div class="text-center py-3 text-muted">
-                        <i class="fas fa-calendar-times"></i>
-                        <div class="small mt-1">Sin eventos</div>
-                    </div>
-                `;
-            } else {
-                // Ordenar eventos por hora
-                dayEvents.sort((a, b) => {
-                    try {
-                        const timeA = a.allDay ? '00:00' : new Date(a.datetime).toTimeString();
-                        const timeB = b.allDay ? '00:00' : new Date(b.datetime).toTimeString();
-                        return timeA.localeCompare(timeB);
-                    } catch (e) {
-                        return 0;
-                    }
-                });
+            // Ordenar eventos del mes por fecha (más recientes primero)
+            monthEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            monthEvents.forEach(event => {
+                const eventDate = new Date(event.date);
+                const isToday = event.date === todayString;
+                const isPast = eventDate < today;
                 
-                dayEvents.forEach(event => {
-                    let eventTime = 'Todo el día';
-                    if (!event.allDay) {
-                        try {
-                            eventTime = new Date(event.datetime).toLocaleTimeString('es-ES', {
-                                hour: '2-digit', 
-                                minute: '2-digit'
-                            });
-                        } catch (e) {
-                            eventTime = 'Hora no disponible';
-                        }
-                    }
-                    
-                    calendarHTML += `
-                        <div class="calendar-event-real" style="border-left-color: ${event.color || '#8b5cf6'}">
-                            <div class="event-time">
-                                <i class="fas fa-clock me-1"></i>${eventTime}
-                            </div>
+                calendarHTML += `
+                    <div class="calendar-event-item ${isToday ? 'today' : ''} ${isPast ? 'past' : 'future'}" 
+                        style="border-left-color: ${event.color || '#8b5cf6'}">
+                        <div class="event-header">
+                            <span class="event-date ${isToday ? 'text-warning' : ''}">
+                                ${event.day_name}, ${event.day_number} de ${event.month_name}
+                                ${isToday ? '<span class="today-badge">HOY</span>' : ''}
+                                ${isPast ? '<span class="past-badge">PASADO</span>' : '<span class="future-badge">FUTURO</span>'}
+                            </span>
+                        </div>
+                        <div class="event-content">
                             <div class="event-title">
                                 ${event.title || 'Evento sin título'}
                                 <span class="event-badge real">REAL</span>
                             </div>
                             ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
                             ${event.location ? `<div class="event-location"><i class="fas fa-map-marker-alt me-1"></i>${event.location}</div>` : ''}
+                            <div class="event-time">
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    ${event.allDay ? 'Todo el día' : new Date(event.datetime).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}
+                                </small>
+                            </div>
                         </div>
-                    `;
-                });
-            }
+                    </div>
+                `;
+            });
+
+            calendarHTML += `
+                    </div>
+                </div>
+            `;
+        });
 
         calendarHTML += `
                 </div>
+                <div class="calendar-footer mt-4">
+                    <div class="alert alert-info">
+                        <small>
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>¿No ves tus eventos recientes?</strong> 
+                            Asegúrate de que los eventos estén en tu calendario de iCloud y que el calendario sea público.
+                        </small>
+                    </div>
+                </div>
             </div>
         `;
-    });
 
-    calendarHTML += `</div></div>`;
-    calendarEl.innerHTML = calendarHTML;
-}
-    function isSameDay(date1, date2) {
+        calendarEl.innerHTML = calendarHTML;
+    }
+
+
+
+// Función auxiliar para comparar fechas
+function isSameDay(date1, date2) {
+    return date1.getDate() === date2.getDate() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getFullYear() === date2.getFullYear();
+} 
+
+function isSameDay(date1, date2) {
         return date1.getDate() === date2.getDate() &&
             date1.getMonth() === date2.getMonth() &&
             date1.getFullYear() === date2.getFullYear();

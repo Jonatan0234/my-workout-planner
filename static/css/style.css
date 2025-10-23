@@ -997,3 +997,129 @@ body {
 .calendar-week-view {
     animation: fadeInUp 0.5s ease-out;
 }
+
+/* Estilos para la nueva vista de calendario */
+.calendar-events-list {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.month-section {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.month-header {
+    font-size: 1.25rem;
+    font-weight: 600;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--primary);
+}
+
+.month-events {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.calendar-event-item {
+    background: rgba(255, 255, 255, 0.08);
+    border-left: 4px solid;
+    border-radius: 8px;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.calendar-event-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateX(5px);
+}
+
+.calendar-event-item.today {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.calendar-event-item.past {
+    opacity: 0.7;
+}
+
+.calendar-event-item.future {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.event-header {
+    margin-bottom: 0.75rem;
+}
+
+.event-date {
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.event-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.event-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.event-description {
+    font-size: 0.9rem;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.event-location {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.event-time {
+    font-size: 0.8rem;
+}
+
+.today-badge, .past-badge, .future-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.today-badge {
+    background: var(--warning);
+    color: #000;
+}
+
+.past-badge {
+    background: #64748b;
+    color: white;
+}
+
+.future-badge {
+    background: var(--success);
+    color: white;
+}
+
+.event-badge.real {
+    background: var(--primary);
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+}
