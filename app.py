@@ -305,27 +305,66 @@ def workout_progress():
     return jsonify(progress_data)
 
 @app.route('/api/real-calendar-events')
+@app.route('/api/real-calendar-events')
 def real_calendar_events():
     """Eventos REALES de Google Calendar - 3 días antes + hoy + 4 días después"""
     try:
         events = get_google_calendar_events()
         
-        # Filtrar eventos del rango: 3 días antes hasta 4 días después
-        today = datetime.now().date()
+        # Usar UTC para consistencia
+        today = datetime.now(timezone.utc).date()
         start_date = today - timedelta(days=3)
         end_date = today + timedelta(days=4)
+        
+        print(f"🔍 Rango de búsqueda: {start_date} a {end_date}")
+        print(f"📊 Total de eventos disponibles: {len(events)}")
         
         filtered_events = []
         for event in events:
             try:
-                event_date = datetime.fromisoformat(event['datetime'].replace('Z', '+00:00')).date()
+                # Extraer la fecha del evento de manera más robusta
+                event_datetime_str = event.get('datetime', '')
+                if not event_datetime_str:
+                    continue
+                    
+                # Convertir a datetime con manejo de zona horaria
+                if event_datetime_str.endswith('Z'):
+                    event_dt = datetime.fromisoformat(event_datetime_str.replace('Z', '+00:00'))
+                else:
+                    event_dt = datetime.fromisoformat(event_datetime_str)
+                
+                # Convertir a UTC para comparación
+                if event_dt.tzinfo is None:
+                    event_dt = event_dt.replace(tzinfo=timezone.utc)
+                else:
+                    event_dt = event_dt.astimezone(timezone.utc)
+                
+                event_date = event_dt.date()
+                
                 if start_date <= event_date <= end_date:
                     filtered_events.append(event)
+                    print(f"✅ Evento en rango: {event.get('title')} - {event_date}")
+                    
             except Exception as e:
-                print(f"⚠️ Error filtrando evento: {e}")
+                print(f"⚠️ Error procesando evento {event.get('title')}: {str(e)}")
                 continue
         
-        print(f"🎯 Eventos del rango {start_date} a {end_date}: {len(filtered_events)}")
+        print(f"🎯 Eventos encontrados en el rango: {len(filtered_events)}")
+        
+        # DEBUG: Mostrar algunos eventos para diagnóstico
+        if len(filtered_events) == 0 and len(events) > 0:
+            print("🔍 Primeros 5 eventos disponibles (para diagnóstico):")
+            for i, event in enumerate(events[:5]):
+                event_datetime_str = event.get('datetime', '')
+                try:
+                    if event_datetime_str.endswith('Z'):
+                        event_dt = datetime.fromisoformat(event_datetime_str.replace('Z', '+00:00'))
+                    else:
+                        event_dt = datetime.fromisoformat(event_datetime_str)
+                    event_date = event_dt.date()
+                    print(f"   {i+1}. {event.get('title')} - {event_date}")
+                except Exception as e:
+                    print(f"   {i+1}. {event.get('title')} - Error: {str(e)}")
         
         return jsonify({
             'success': True,
@@ -349,6 +388,8 @@ def real_calendar_events():
             'message': f'❌ Error: {str(e)}',
             'source': 'error'
         })
+
+
 
 def get_google_calendar_events():
     """Obtener eventos de Google Calendar"""
@@ -396,56 +437,89 @@ def parse_with_icalendar_lib(ical_content):
     
     return events
 
-def parse_icalendar_component(component):
-    """Parsear componente VEVENT"""
+@app.route('/api/real-calendar-events')
+def real_calendar_events():
+    """Eventos REALES de Google Calendar - 3 días antes + hoy + 4 días después"""
     try:
-        # Obtener campos básicos
-        summary = component.get('SUMMARY')
-        dtstart = component.get('DTSTART')
+        events = get_google_calendar_events()
         
-        if not summary or not dtstart:
-            return None
+        # Usar UTC para consistencia
+        today = datetime.now(timezone.utc).date()
+        start_date = today - timedelta(days=3)
+        end_date = today + timedelta(days=4)
         
-        # Extraer datetime
-        start_dt = dtstart.dt
+        print(f"🔍 Rango de búsqueda: {start_date} a {end_date}")
+        print(f"📊 Total de eventos disponibles: {len(events)}")
         
-        # Crear evento
-        event = {
-            'title': str(summary),
-            'isReal': True
-        }
+        filtered_events = []
+        for event in events:
+            try:
+                # Extraer la fecha del evento de manera más robusta
+                event_datetime_str = event.get('datetime', '')
+                if not event_datetime_str:
+                    continue
+                    
+                # Convertir a datetime con manejo de zona horaria
+                if event_datetime_str.endswith('Z'):
+                    event_dt = datetime.fromisoformat(event_datetime_str.replace('Z', '+00:00'))
+                else:
+                    event_dt = datetime.fromisoformat(event_datetime_str)
+                
+                # Convertir a UTC para comparación
+                if event_dt.tzinfo is None:
+                    event_dt = event_dt.replace(tzinfo=timezone.utc)
+                else:
+                    event_dt = event_dt.astimezone(timezone.utc)
+                
+                event_date = event_dt.date()
+                
+                if start_date <= event_date <= end_date:
+                    filtered_events.append(event)
+                    print(f"✅ Evento en rango: {event.get('title')} - {event_date}")
+                    
+            except Exception as e:
+                print(f"⚠️ Error procesando evento {event.get('title')}: {str(e)}")
+                continue
         
-        # Manejar fecha/hora
-        if isinstance(start_dt, datetime):
-            event_start = start_dt
-            event['allDay'] = False
-        else:
-            event_start = datetime.combine(start_dt, datetime.min.time())
-            event['allDay'] = True
+        print(f"🎯 Eventos encontrados en el rango: {len(filtered_events)}")
         
-        event['datetime'] = event_start.isoformat()
-        event['date'] = event_start.strftime("%Y-%m-%d")
-        event['day_name'] = event_start.strftime("%A")
-        event['day_number'] = event_start.day
-        event['month_name'] = event_start.strftime("%B")
-        event['year'] = event_start.year
-        event['month'] = event_start.month
-        event['day'] = event_start.day
+        # DEBUG: Mostrar algunos eventos para diagnóstico
+        if len(filtered_events) == 0 and len(events) > 0:
+            print("🔍 Primeros 5 eventos disponibles (para diagnóstico):")
+            for i, event in enumerate(events[:5]):
+                event_datetime_str = event.get('datetime', '')
+                try:
+                    if event_datetime_str.endswith('Z'):
+                        event_dt = datetime.fromisoformat(event_datetime_str.replace('Z', '+00:00'))
+                    else:
+                        event_dt = datetime.fromisoformat(event_datetime_str)
+                    event_date = event_dt.date()
+                    print(f"   {i+1}. {event.get('title')} - {event_date}")
+                except Exception as e:
+                    print(f"   {i+1}. {event.get('title')} - Error: {str(e)}")
         
-        # Campos opcionales
-        description = component.get('DESCRIPTION')
-        location = component.get('LOCATION')
-        event['description'] = str(description) if description else ''
-        event['location'] = str(location) if location else ''
-        
-        # Color basado en título
-        event['color'] = get_event_color(str(summary))
-        
-        return event
-        
+        return jsonify({
+            'success': True,
+            'events': filtered_events,
+            'count': len(filtered_events),
+            'message': f'✅ Mostrando {len(filtered_events)} eventos (3 días antes + hoy + 4 días después)',
+            'source': 'google_calendar',
+            'date_range': {
+                'start': start_date.isoformat(),
+                'end': end_date.isoformat(),
+                'today': today.isoformat()
+            }
+        })
+            
     except Exception as e:
-        print(f"❌ Error parseando componente: {str(e)}")
-        return None
+        print(f"❌ Error cargando calendario: {str(e)}")
+        return jsonify({
+            'success': False,
+            'events': [],
+            'count': 0,
+            'message': f'❌ Error: {str(e)}',
+            'source': 'error'
+        })
 
 def get_event_color(event_title):
     """Asignar colores basado en el contenido del evento"""

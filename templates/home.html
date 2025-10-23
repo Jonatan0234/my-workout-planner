@@ -294,22 +294,32 @@
             const statusEl = document.getElementById('calendarStatus');
             
             if (data.success) {
-                statusEl.innerHTML = `
-                    <span class="badge bg-success me-2">
-                        <i class="fas fa-check-circle me-1"></i>GOOGLE CALENDAR
-                    </span>
-                    ${data.message}
-                `;
+                if (data.count === 0) {
+                    statusEl.innerHTML = `
+                        <span class="badge bg-warning me-2">
+                            <i class="fas fa-calendar-times me-1"></i>GOOGLE CALENDAR
+                        </span>
+                        ${data.message} - <small>Rango: ${data.date_range.start} a ${data.date_range.end}</small>
+                    `;
+                } else {
+                    statusEl.innerHTML = `
+                        <span class="badge bg-success me-2">
+                            <i class="fas fa-check-circle me-1"></i>GOOGLE CALENDAR
+                        </span>
+                        ${data.message}
+                    `;
+                }
             } else {
                 statusEl.innerHTML = `
-                    <span class="badge bg-warning me-2">
-                        <i class="fas fa-exclamation-triangle me-1"></i>CALENDAR
+                    <span class="badge bg-danger me-2">
+                        <i class="fas fa-exclamation-triangle me-1"></i>ERROR
                     </span>
                     ${data.message}
                 `;
             }
         }
 
+        
         function renderError(error) {
             const calendarEl = document.getElementById('calendarView');
             calendarEl.innerHTML = `
