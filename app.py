@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 from icalendar import Calendar
 import io
+import time
 
 app = Flask(__name__)
 
@@ -305,16 +306,38 @@ def workout_progress():
 
 @app.route('/api/real-calendar-events')
 def real_calendar_events():
-    """SOLO eventos REALES del calendario público - SIN FILTRADO"""
+    """SOLO eventos REALES del calendario público - CON ACTUALIZACIÓN FORZADA"""
     try:
-        events = get_real_calendar_events()
+        # Forzar actualización añadiendo timestamp único
+        timestamp = int(time.time())
+        forced_calendar_url = f"{APPLE_CALENDAR_URL}?{timestamp}"
+        
+        events = get_real_calendar_events(forced_calendar_url)
+        
+        # Filtrar SOLO eventos de hoy y próximos 7 días
+        today = datetime.now().date()
+        next_week = today + timedelta(days=7)
+        
+        filtered_events = []
+        for event in events:
+            try:
+                event_date = datetime.fromisoformat(event['datetime'].replace('Z', '+00:00')).date()
+                if today <= event_date <= next_week:
+                    filtered_events.append(event)
+            except Exception as e:
+                print(f"⚠️ Error filtrando evento: {e}")
+                continue
+        
+        print(f"🎯 Eventos de hoy + 7 días: {len(filtered_events)}")
         
         return jsonify({
             'success': True,
-            'events': events,
-            'count': len(events),
-            'message': f'✅ Cargados {len(events)} eventos REALES de tu calendario',
-            'source': 'public_calendar'
+            'events': filtered_events,
+            'count': len(filtered_events),
+            'message': f'✅ Mostrando {len(filtered_events)} eventos de hoy y próximos 7 días',
+            'source': 'public_calendar',
+            'today': today.isoformat(),
+            'next_week': next_week.isoformat()
         })
             
     except Exception as e:
@@ -327,15 +350,23 @@ def real_calendar_events():
             'source': 'error'
         })
 
-def get_real_calendar_events():
-    """Obtener eventos REALES usando biblioteca iCalendar profesional"""
+def get_real_calendar_events(calendar_url=None):
+    """Obtener eventos REALES forzando actualización"""
     try:
+        # Usar URL forzada o la normal
+        url = calendar_url or APPLE_CALENDAR_URL
+        
         # Convertir webcal:// a https://
-        ical_url = APPLE_CALENDAR_URL.replace('webcal://', 'https://')
+        ical_url = url.replace('webcal://', 'https://')
         print(f"🔗 Conectando a: {ical_url}")
         
-        # Descargar el archivo iCal
-        response = requests.get(ical_url, timeout=10)
+        # Descargar el archivo iCal con headers para evitar cache
+        headers = {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+        response = requests.get(ical_url, timeout=10, headers=headers)
         response.raise_for_status()
         
         print(f"📥 Calendario descargado: {len(response.text)} caracteres")
@@ -365,7 +396,6 @@ def parse_with_icalendar_lib(ical_content):
                     event_data = parse_icalendar_component(component)
                     if event_data:
                         events.append(event_data)
-                        print(f"✅ Evento añadido: {event_data['title']} - {event_data['date']}")
                 except Exception as e:
                     print(f"⚠️ Error parseando componente: {str(e)}")
                     continue
@@ -377,7 +407,7 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT - VERSIÓN SIMPLIFICADA"""
+    """Parsear componente VEVENT - VERSIÓN OPTIMIZADA"""
     try:
         # Obtener campos básicos
         summary = component.get('SUMMARY')
@@ -389,28 +419,29 @@ def parse_icalendar_component(component):
         # Extraer datetime de forma segura
         start_dt = dtstart.dt
         
-        print(f"🔍 Procesando evento: {summary}")
-        print(f"   - Valor de start_dt: {start_dt}")
+        # DEBUG reducido para eventos recientes
+        event_title = str(summary)
         
         # Crear evento básico
         event = {
-            'title': str(summary),
+            'title': event_title,
             'isReal': True
         }
         
-        # **ENFOQUE SIMPLIFICADO: Usar la fecha tal cual**
+        # Manejar fecha/hora
         if isinstance(start_dt, datetime):
-            # Evento con hora específica
             event_start = start_dt
             event['allDay'] = False
-            print(f"   - Evento con hora: {event_start}")
         else:
-            # Evento todo el día
             event_start = datetime.combine(start_dt, datetime.min.time())
             event['allDay'] = True
-            print(f"   - Evento todo el día: {event_start}")
         
-        # **NO FILTRAR - dejar que el frontend decida**
+        # Solo mostrar debug para eventos recientes
+        event_date = event_start.date()
+        today = datetime.now().date()
+        if event_date >= today:
+            print(f"🔍 Evento RECIENTE: {event_title} - {event_date}")
+        
         event['datetime'] = event_start.isoformat()
         event['date'] = event_start.strftime("%Y-%m-%d")
         event['day_name'] = event_start.strftime("%A")
@@ -427,16 +458,12 @@ def parse_icalendar_component(component):
         event['location'] = str(location) if location else ''
         
         # Color basado en título
-        event['color'] = get_event_color(event['title'])
-        
-        print(f"   - Evento final: {event['title']} - {event['date']}")
+        event['color'] = get_event_color(event_title)
         
         return event
         
     except Exception as e:
         print(f"❌ Error parseando componente: {str(e)}")
-        import traceback
-        print(f"   - Traceback: {traceback.format_exc()}")
         return None
 
 def get_event_color(event_title):
