@@ -1274,3 +1274,35 @@ body {
         min-height: 250px;
     }
 }
+
+/* ===== GOOGLE CALENDAR IFRAME STYLES ===== */
+.calendar-iframe-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-lg);
+    overflow: hidden;
+    padding: 1rem;
+}
+
+.calendar-iframe-container iframe {
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    background: white;
+}
+
+/* Responsive iframe */
+@media (max-width: 768px) {
+    .calendar-iframe-container {
+        padding: 0.5rem;
+    }
+    
+    .calendar-iframe-container iframe {
+        height: 500px;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-iframe-container iframe {
+        height: 400px;
+    }
+}
