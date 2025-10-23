@@ -363,7 +363,7 @@ def parse_with_icalendar_lib(ical_content):
             if component.name == "VEVENT":
                 try:
                     event_data = parse_icalendar_component(component)
-                    if event_data and is_recent_event(event_data):
+                    if event_data:
                         events.append(event_data)
                         print(f"✅ Evento añadido: {event_data['title']} - {event_data['date']}")
                 except Exception as e:
@@ -377,51 +377,40 @@ def parse_with_icalendar_lib(ical_content):
     return events
 
 def parse_icalendar_component(component):
-    """Parsear componente VEVENT usando biblioteca iCalendar - CORREGIDO PARA TIMEZONES"""
+    """Parsear componente VEVENT usando biblioteca iCalendar - SIMPLIFICADO"""
     event = {}
     
     try:
         # Obtener campos usando la biblioteca
         summary = component.get('SUMMARY')
         dtstart = component.get('DTSTART')
-        dtend = component.get('DTEND')
-        description = component.get('DESCRIPTION')
-        location = component.get('LOCATION')
         
-        # Verificar campos obligatorios
         if not summary or not dtstart:
             return None
         
         # Título
         event['title'] = str(summary)
         
-        # Fechas
+        # Fechas - MANEJO SIMPLIFICADO
         start_dt = dtstart.dt
-        event['start'] = start_dt
         
-        if dtend:
-            event['end'] = dtend.dt
-        else:
-            # Si no hay fecha de fin, asumir 1 hora
-            if isinstance(start_dt, datetime):
-                event['end'] = start_dt + timedelta(hours=1)
-            else:
-                event['end'] = start_dt
-        
-        # Determinar si es todo el día - CORREGIDO
-        event['allDay'] = not isinstance(start_dt, datetime)
-        
-        # Convertir a datetime naive para consistencia
-        if event['allDay']:
-            # Para eventos de todo el día, usar fecha sin hora
-            event_start = datetime.combine(start_dt, datetime.min.time())
-        else:
-            # Para eventos con hora, convertir a naive datetime
+        # Convertir a datetime naive
+        if isinstance(start_dt, datetime):
+            # Ya es datetime, verificar si tiene timezone
             if start_dt.tzinfo is not None:
-                # Convertir a UTC y luego quitar timezone info
                 event_start = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
             else:
                 event_start = start_dt
+            event['allDay'] = False
+        else:
+            # Es solo fecha (todo el día)
+            event_start = datetime.combine(start_dt, datetime.min.time())
+            event['allDay'] = True
+        
+        # Solo eventos desde hoy en adelante
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if event_start < today:
+            return None
         
         # Información adicional
         event['color'] = get_event_color(event['title'])
@@ -430,28 +419,19 @@ def parse_icalendar_component(component):
         event['day_name'] = event_start.strftime("%A")
         event['day_number'] = event_start.day
         event['month_name'] = event_start.strftime("%B")
+        event['datetime'] = event_start.isoformat()  # Guardar como string para evitar problemas
         
-        # Actualizar el start con el datetime naive para uso interno
-        event['start'] = event_start
+        # Campos opcionales
+        description = component.get('DESCRIPTION')
+        location = component.get('LOCATION')
+        event['description'] = str(description) if description else ''
+        event['location'] = str(location) if location else ''
         
         return event
         
     except Exception as e:
         print(f"❌ Error parseando componente: {str(e)}")
         return None
-
-def is_recent_event(event):
-    """Filtrar solo eventos recientes o futuros - CORREGIDO para timezones"""
-    now = datetime.now()
-    
-    # Obtener la fecha de inicio (ya convertida a naive)
-    event_start = event['start']
-    
-    # Mostrar eventos desde 60 días atrás hasta 90 días en el futuro
-    start_range = now - timedelta(days=60)
-    end_range = now + timedelta(days=90)
-    
-    return start_range <= event_start <= end_range
 
 def get_event_color(event_title):
     """Asignar colores basado en el contenido del evento"""
